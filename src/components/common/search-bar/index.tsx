@@ -53,7 +53,7 @@ export function SearchBar() {
   )
   const inputRef = useRef<HTMLInputElement | null>(null)
 
-  const [value, setValue] = useState<SourceID>("github-trending-today")
+  const [value, setValue] = useState<SourceID>("govcn")
 
   useMount(() => {
     inputRef?.current?.focus()

@@ -1,4 +1,5 @@
 import path from "node:path"
+import { pathToFileURL } from "node:url"
 import { writeFile } from "node:fs/promises"
 import type { Plugin } from "rollup"
 import glob from "fast-glob"
@@ -43,7 +44,7 @@ export function RollopGlob(): Plugin {
       const contents = files.map((file) => {
         const r = file.replace("/index", "")
         const name = path.basename(r, path.extname(r))
-        return `export * as ${name} from '${file}'\n`
+        return `export * as ${name} from '${pathToFileURL(file).href}'\n`
       }).join("\n")
 
       await writeTypeDeclaration(map, path.join(root, "glob"))

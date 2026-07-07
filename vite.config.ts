@@ -1,4 +1,5 @@
 import { join } from "node:path"
+import process from "node:process"
 import { defineConfig } from "vite"
 import react from "@vitejs/plugin-react-swc"
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite"
@@ -24,6 +25,7 @@ export default defineConfig({
     TanStackRouterVite({
       // error with auto import and vite-plugin-pwa
       // autoCodeSplitting: true,
+      enableRouteGeneration: process.platform !== "win32",
     }),
     unimport.vite({
       dirs: ["src/hooks", "shared", "src/utils", "src/atoms"],

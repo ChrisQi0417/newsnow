@@ -4,7 +4,9 @@ import type { RSSInfo } from "../types"
 export async function rss2json(url: string): Promise<RSSInfo | undefined> {
   if (!/^https?:\/\/[^\s$.?#].\S*/i.test(url)) return
 
-  const data = await myFetch(url)
+  const data = await myFetch<string>(url, {
+    responseType: "text",
+  })
 
   const xml = new XMLParser({
     attributeNamePrefix: "",
@@ -16,6 +18,7 @@ export async function rss2json(url: string): Promise<RSSInfo | undefined> {
 
   let channel = result.rss && result.rss.channel ? result.rss.channel : result.feed
   if (Array.isArray(channel)) channel = channel[0]
+  if (!channel) return
 
   const rss = {
     title: channel.title ?? "",

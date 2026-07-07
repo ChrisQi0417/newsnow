@@ -6,8 +6,11 @@ interface GovCnItem {
 }
 
 export default defineSource(async () => {
-  const raw: string = await myFetch("https://www.gov.cn/pushinfo/v150203/pushinfo.jsonp")
-  const [, json = "[]"] = raw.match(/^[^(]*\(([\s\S]*)\)\s*;?\s*$/) ?? []
+  const raw = await myFetch<string>("https://www.gov.cn/pushinfo/v150203/pushinfo.jsonp", {
+    responseType: "text",
+  })
+  const [, json] = raw.match(/^[^(]*\(([\s\S]*)\)\s*;?\s*$/) ?? []
+  if (!json) throw new Error("Cannot parse gov.cn pushinfo")
   const data = JSON.parse(json) as GovCnItem[]
 
   return data.map(item => ({
