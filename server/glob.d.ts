@@ -1,15 +1,25 @@
 /* eslint-disable */
 
 declare module 'glob:./sources/{*.ts,**/index.ts}' {
+  export const afp: typeof import('./sources/afp')
   export const apnews: typeof import('./sources/apnews')
   export const bbc: typeof import('./sources/bbc')
+  export const bbcnews: typeof import('./sources/bbcnews')
+  export const bloomberg: typeof import('./sources/bloomberg')
   export const chinanews: typeof import('./sources/chinanews')
   export const dw: typeof import('./sources/dw')
+  export const economist: typeof import('./sources/economist')
+  export const france24: typeof import('./sources/france24')
+  export const ft: typeof import('./sources/ft')
   export const govcn: typeof import('./sources/govcn')
+  export const nhk: typeof import('./sources/nhk')
+  export const nikkei: typeof import('./sources/nikkei')
   export const people: typeof import('./sources/people')
   export const reuters: typeof import('./sources/reuters')
   export const rfi: typeof import('./sources/rfi')
   export const scmp: typeof import('./sources/scmp')
+  export const truthsocial: typeof import('./sources/truthsocial')
   export const unnews: typeof import('./sources/unnews')
+  export const wsj: typeof import('./sources/wsj')
   export const xinhua: typeof import('./sources/xinhua')
 }

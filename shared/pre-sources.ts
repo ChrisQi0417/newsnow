@@ -15,7 +15,7 @@ const Time = {
 // Curated for factuality: prefer wire services, official primary releases,
 // public international broadcasters, and accountable newsrooms over social hot lists.
 export const originSources = {
-  "govcn": {
+  govcn: {
     name: "中国政府网",
     type: "realtime",
     column: "china",
@@ -24,7 +24,7 @@ export const originSources = {
     desc: "国务院政策和政务原始发布",
     home: "https://www.gov.cn/",
   },
-  "people": {
+  people: {
     name: "人民网",
     color: "red",
     interval: Time.Common,
@@ -50,7 +50,7 @@ export const originSources = {
       },
     },
   },
-  "chinanews": {
+  chinanews: {
     name: "中国新闻网",
     color: "red",
     interval: Time.Common,
@@ -76,7 +76,7 @@ export const originSources = {
       },
     },
   },
-  "xinhua": {
+  xinhua: {
     name: "新华社英文",
     color: "red",
     interval: Time.Common,
@@ -104,46 +104,66 @@ export const originSources = {
       },
     },
   },
-  "reuters": {
-    name: "Reuters",
-    title: "Latest",
+  truthsocial: {
+    name: "特朗普 Truth Social",
+    title: "特朗普发布",
+    type: "realtime",
+    column: "world",
+    color: "red",
+    interval: Time.Fast,
+    desc: "Donald Trump Truth Social posts; official Truth Social URL is retained when available",
+    home: "https://truthsocial.com/@realDonaldTrump",
+  },
+  reuters: {
+    name: "路透社",
+    title: "综合",
     type: "realtime",
     column: "world",
     color: "orange",
     interval: Time.Fast,
-    desc: "Official Reuters news sitemap",
+    desc: "Reuters official news sitemap, titles translated to Chinese",
     home: "https://www.reuters.com/",
   },
-  "apnews": {
-    name: "AP News",
+  apnews: {
+    name: "美联社",
     color: "slate",
     interval: Time.Fast,
-    desc: "Associated Press topics via RSSHub",
+    desc: "Associated Press topics via RSSHub, titles translated to Chinese",
     home: "https://apnews.com/",
     sub: {
-      top: {
-        title: "Top",
+      "top": {
+        title: "头条",
         type: "realtime",
         column: "world",
       },
-      world: {
-        title: "World",
+      "world": {
+        title: "国际",
         type: "realtime",
         column: "world",
       },
-      business: {
-        title: "Business",
+      "business": {
+        title: "商业",
         type: "realtime",
         column: "finance",
       },
       "fact-check": {
-        title: "Fact Check",
+        title: "事实核查",
         type: "realtime",
         column: "world",
       },
     },
   },
-  "bbc": {
+  afp: {
+    name: "法新社",
+    title: "综合",
+    type: "realtime",
+    column: "world",
+    color: "blue",
+    interval: Time.Common,
+    desc: "AFP.com official flash news, titles translated to Chinese",
+    home: "https://www.afp.com/en",
+  },
+  bbc: {
     name: "BBC中文",
     type: "realtime",
     column: "world",
@@ -151,7 +171,105 @@ export const originSources = {
     interval: Time.Common,
     home: "https://www.bbc.com/zhongwen/simp",
   },
-  "dw": {
+  bbcnews: {
+    name: "BBC新闻",
+    color: "red",
+    interval: Time.Common,
+    desc: "BBC News and BBC World Service feeds, titles translated to Chinese",
+    home: "https://www.bbc.com/news/world",
+    sub: {
+      world: {
+        title: "国际",
+        type: "realtime",
+        column: "world",
+      },
+      worldservice: {
+        title: "国际广播",
+        type: "realtime",
+        column: "world",
+        home: "http://bbc.com/minute",
+      },
+    },
+  },
+  bloomberg: {
+    name: "彭博社",
+    color: "orange",
+    interval: Time.Fast,
+    desc: "Bloomberg RSS feeds, titles translated to Chinese",
+    home: "https://www.bloomberg.com/",
+    sub: {
+      business: {
+        title: "商业",
+        type: "realtime",
+        column: "finance",
+      },
+      markets: {
+        title: "市场",
+        type: "realtime",
+        column: "finance",
+      },
+      economics: {
+        title: "经济",
+        type: "realtime",
+        column: "finance",
+      },
+      politics: {
+        title: "政治",
+        type: "realtime",
+        column: "world",
+      },
+      technology: {
+        title: "科技",
+        type: "realtime",
+        column: "tech",
+      },
+    },
+  },
+  ft: {
+    name: "金融时报",
+    title: "首页",
+    type: "realtime",
+    column: "finance",
+    color: "orange",
+    interval: Time.Common,
+    desc: "Financial Times home RSS, titles translated to Chinese",
+    home: "https://ft.com/",
+  },
+  wsj: {
+    name: "华尔街日报",
+    color: "slate",
+    interval: Time.Common,
+    desc: "Wall Street Journal RSS feeds, titles translated to Chinese",
+    home: "https://www.wsj.com/news/rss-news-and-feeds",
+    sub: {
+      news: {
+        title: "新闻",
+        type: "realtime",
+        column: "world",
+      },
+      world: {
+        title: "国际",
+        type: "realtime",
+        column: "world",
+      },
+      markets: {
+        title: "市场",
+        type: "realtime",
+        column: "finance",
+      },
+    },
+  },
+  nikkei: {
+    name: "日经亚洲",
+    title: "综合",
+    type: "realtime",
+    column: "finance",
+    color: "orange",
+    interval: Time.Common,
+    desc: "Nikkei Asia RSS, titles translated to Chinese",
+    home: "https://asia.nikkei.com/",
+  },
+  dw: {
     name: "德国之声中文",
     type: "realtime",
     column: "world",
@@ -159,7 +277,37 @@ export const originSources = {
     interval: Time.Common,
     home: "https://www.dw.com/zh/",
   },
-  "rfi": {
+  france24: {
+    name: "France 24",
+    title: "国际",
+    type: "realtime",
+    column: "world",
+    color: "blue",
+    interval: Time.Common,
+    desc: "France 24 English RSS, titles translated to Chinese",
+    home: "https://www.france24.com/en/",
+  },
+  nhk: {
+    name: "NHK World",
+    title: "国际",
+    type: "realtime",
+    column: "world",
+    color: "red",
+    interval: Time.Common,
+    desc: "NHK World English news JSON, titles translated to Chinese",
+    home: "https://www3.nhk.or.jp/nhkworld/en/news/",
+  },
+  economist: {
+    name: "经济学人",
+    title: "最新",
+    type: "realtime",
+    column: "world",
+    color: "red",
+    interval: Time.Common,
+    desc: "The Economist latest RSS, titles translated to Chinese",
+    home: "https://www.economist.com/latest",
+  },
+  rfi: {
     name: "法广中文",
     type: "realtime",
     column: "world",
@@ -167,7 +315,7 @@ export const originSources = {
     interval: Time.Common,
     home: "https://www.rfi.fr/cn/",
   },
-  "unnews": {
+  unnews: {
     name: "联合国新闻",
     type: "realtime",
     column: "world",
@@ -176,7 +324,7 @@ export const originSources = {
     desc: "联合国官方中文新闻",
     home: "https://news.un.org/zh/",
   },
-  "scmp": {
+  scmp: {
     name: "南华早报",
     color: "orange",
     interval: Time.Common,

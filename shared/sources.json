@@ -128,11 +128,21 @@
     "interval": 1800000,
     "title": "Sci-Tech"
   },
-  "reuters": {
-    "title": "Latest",
-    "name": "Reuters",
+  "truthsocial": {
+    "title": "特朗普发布",
+    "name": "特朗普 Truth Social",
     "type": "realtime",
-    "desc": "Official Reuters news sitemap",
+    "desc": "Donald Trump Truth Social posts; official Truth Social URL is retained when available",
+    "column": "world",
+    "home": "https://truthsocial.com/@realDonaldTrump",
+    "color": "red",
+    "interval": 300000
+  },
+  "reuters": {
+    "title": "综合",
+    "name": "路透社",
+    "type": "realtime",
+    "desc": "Reuters official news sitemap, titles translated to Chinese",
     "column": "world",
     "home": "https://www.reuters.com/",
     "color": "orange",
@@ -140,54 +150,64 @@
   },
   "apnews": {
     "redirect": "apnews-top",
-    "name": "AP News",
+    "name": "美联社",
     "type": "realtime",
-    "desc": "Associated Press topics via RSSHub",
+    "desc": "Associated Press topics via RSSHub, titles translated to Chinese",
     "column": "world",
     "home": "https://apnews.com/",
     "color": "slate",
     "interval": 300000,
-    "title": "Top"
+    "title": "头条"
   },
   "apnews-top": {
-    "name": "AP News",
+    "name": "美联社",
     "type": "realtime",
-    "desc": "Associated Press topics via RSSHub",
+    "desc": "Associated Press topics via RSSHub, titles translated to Chinese",
     "column": "world",
     "home": "https://apnews.com/",
     "color": "slate",
     "interval": 300000,
-    "title": "Top"
+    "title": "头条"
   },
   "apnews-world": {
-    "name": "AP News",
+    "name": "美联社",
     "type": "realtime",
-    "desc": "Associated Press topics via RSSHub",
+    "desc": "Associated Press topics via RSSHub, titles translated to Chinese",
     "column": "world",
     "home": "https://apnews.com/",
     "color": "slate",
     "interval": 300000,
-    "title": "World"
+    "title": "国际"
   },
   "apnews-business": {
-    "name": "AP News",
+    "name": "美联社",
     "type": "realtime",
-    "desc": "Associated Press topics via RSSHub",
+    "desc": "Associated Press topics via RSSHub, titles translated to Chinese",
     "column": "finance",
     "home": "https://apnews.com/",
     "color": "slate",
     "interval": 300000,
-    "title": "Business"
+    "title": "商业"
   },
   "apnews-fact-check": {
-    "name": "AP News",
+    "name": "美联社",
     "type": "realtime",
-    "desc": "Associated Press topics via RSSHub",
+    "desc": "Associated Press topics via RSSHub, titles translated to Chinese",
     "column": "world",
     "home": "https://apnews.com/",
     "color": "slate",
     "interval": 300000,
-    "title": "Fact Check"
+    "title": "事实核查"
+  },
+  "afp": {
+    "title": "综合",
+    "name": "法新社",
+    "type": "realtime",
+    "desc": "AFP.com official flash news, titles translated to Chinese",
+    "column": "world",
+    "home": "https://www.afp.com/en",
+    "color": "blue",
+    "interval": 1800000
   },
   "bbc": {
     "name": "BBC中文",
@@ -197,12 +217,195 @@
     "color": "red",
     "interval": 1800000
   },
+  "bbcnews": {
+    "redirect": "bbcnews-world",
+    "name": "BBC新闻",
+    "type": "realtime",
+    "desc": "BBC News and BBC World Service feeds, titles translated to Chinese",
+    "column": "world",
+    "home": "https://www.bbc.com/news/world",
+    "color": "red",
+    "interval": 1800000,
+    "title": "国际"
+  },
+  "bbcnews-world": {
+    "name": "BBC新闻",
+    "type": "realtime",
+    "desc": "BBC News and BBC World Service feeds, titles translated to Chinese",
+    "column": "world",
+    "home": "https://www.bbc.com/news/world",
+    "color": "red",
+    "interval": 1800000,
+    "title": "国际"
+  },
+  "bbcnews-worldservice": {
+    "name": "BBC新闻",
+    "type": "realtime",
+    "desc": "BBC News and BBC World Service feeds, titles translated to Chinese",
+    "column": "world",
+    "home": "http://bbc.com/minute",
+    "color": "red",
+    "interval": 1800000,
+    "title": "国际广播"
+  },
+  "bloomberg": {
+    "redirect": "bloomberg-business",
+    "name": "彭博社",
+    "type": "realtime",
+    "desc": "Bloomberg RSS feeds, titles translated to Chinese",
+    "column": "finance",
+    "home": "https://www.bloomberg.com/",
+    "color": "orange",
+    "interval": 300000,
+    "title": "商业"
+  },
+  "bloomberg-business": {
+    "name": "彭博社",
+    "type": "realtime",
+    "desc": "Bloomberg RSS feeds, titles translated to Chinese",
+    "column": "finance",
+    "home": "https://www.bloomberg.com/",
+    "color": "orange",
+    "interval": 300000,
+    "title": "商业"
+  },
+  "bloomberg-markets": {
+    "name": "彭博社",
+    "type": "realtime",
+    "desc": "Bloomberg RSS feeds, titles translated to Chinese",
+    "column": "finance",
+    "home": "https://www.bloomberg.com/",
+    "color": "orange",
+    "interval": 300000,
+    "title": "市场"
+  },
+  "bloomberg-economics": {
+    "name": "彭博社",
+    "type": "realtime",
+    "desc": "Bloomberg RSS feeds, titles translated to Chinese",
+    "column": "finance",
+    "home": "https://www.bloomberg.com/",
+    "color": "orange",
+    "interval": 300000,
+    "title": "经济"
+  },
+  "bloomberg-politics": {
+    "name": "彭博社",
+    "type": "realtime",
+    "desc": "Bloomberg RSS feeds, titles translated to Chinese",
+    "column": "world",
+    "home": "https://www.bloomberg.com/",
+    "color": "orange",
+    "interval": 300000,
+    "title": "政治"
+  },
+  "bloomberg-technology": {
+    "name": "彭博社",
+    "type": "realtime",
+    "desc": "Bloomberg RSS feeds, titles translated to Chinese",
+    "column": "tech",
+    "home": "https://www.bloomberg.com/",
+    "color": "orange",
+    "interval": 300000,
+    "title": "科技"
+  },
+  "ft": {
+    "title": "首页",
+    "name": "金融时报",
+    "type": "realtime",
+    "desc": "Financial Times home RSS, titles translated to Chinese",
+    "column": "finance",
+    "home": "https://ft.com/",
+    "color": "orange",
+    "interval": 1800000
+  },
+  "wsj": {
+    "redirect": "wsj-news",
+    "name": "华尔街日报",
+    "type": "realtime",
+    "desc": "Wall Street Journal RSS feeds, titles translated to Chinese",
+    "column": "world",
+    "home": "https://www.wsj.com/news/rss-news-and-feeds",
+    "color": "slate",
+    "interval": 1800000,
+    "title": "新闻"
+  },
+  "wsj-news": {
+    "name": "华尔街日报",
+    "type": "realtime",
+    "desc": "Wall Street Journal RSS feeds, titles translated to Chinese",
+    "column": "world",
+    "home": "https://www.wsj.com/news/rss-news-and-feeds",
+    "color": "slate",
+    "interval": 1800000,
+    "title": "新闻"
+  },
+  "wsj-world": {
+    "name": "华尔街日报",
+    "type": "realtime",
+    "desc": "Wall Street Journal RSS feeds, titles translated to Chinese",
+    "column": "world",
+    "home": "https://www.wsj.com/news/rss-news-and-feeds",
+    "color": "slate",
+    "interval": 1800000,
+    "title": "国际"
+  },
+  "wsj-markets": {
+    "name": "华尔街日报",
+    "type": "realtime",
+    "desc": "Wall Street Journal RSS feeds, titles translated to Chinese",
+    "column": "finance",
+    "home": "https://www.wsj.com/news/rss-news-and-feeds",
+    "color": "slate",
+    "interval": 1800000,
+    "title": "市场"
+  },
+  "nikkei": {
+    "title": "综合",
+    "name": "日经亚洲",
+    "type": "realtime",
+    "desc": "Nikkei Asia RSS, titles translated to Chinese",
+    "column": "finance",
+    "home": "https://asia.nikkei.com/",
+    "color": "orange",
+    "interval": 1800000
+  },
   "dw": {
     "name": "德国之声中文",
     "type": "realtime",
     "column": "world",
     "home": "https://www.dw.com/zh/",
     "color": "blue",
+    "interval": 1800000
+  },
+  "france24": {
+    "title": "国际",
+    "name": "France 24",
+    "type": "realtime",
+    "desc": "France 24 English RSS, titles translated to Chinese",
+    "column": "world",
+    "home": "https://www.france24.com/en/",
+    "color": "blue",
+    "interval": 1800000
+  },
+  "nhk": {
+    "title": "国际",
+    "name": "NHK World",
+    "type": "realtime",
+    "desc": "NHK World English news JSON, titles translated to Chinese",
+    "column": "world",
+    "home": "https://www3.nhk.or.jp/nhkworld/en/news/",
+    "color": "red",
+    "interval": 1800000
+  },
+  "economist": {
+    "title": "最新",
+    "name": "经济学人",
+    "type": "realtime",
+    "desc": "The Economist latest RSS, titles translated to Chinese",
+    "column": "world",
+    "home": "https://www.economist.com/latest",
+    "color": "red",
     "interval": 1800000
   },
   "rfi": {

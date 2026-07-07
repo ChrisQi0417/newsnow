@@ -1,9 +1,10 @@
 import { XMLParser } from "fast-xml-parser"
 import type { NewsItem } from "@shared/types"
+import { translateNewsItemsToChinese } from "../utils/translate"
 
 interface ReutersSitemapUrl {
-  loc?: string
-  lastmod?: string
+  "loc"?: string
+  "lastmod"?: string
   "news:news"?: {
     "news:publication_date"?: string
     "news:title"?: string
@@ -56,5 +57,5 @@ export default defineSource(async () => {
     })
   }
 
-  return news.sort((a, b) => Number(b.pubDate) - Number(a.pubDate)).slice(0, 50)
+  return translateNewsItemsToChinese(news.sort((a, b) => Number(b.pubDate) - Number(a.pubDate)).slice(0, 50))
 })

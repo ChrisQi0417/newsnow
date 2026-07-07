@@ -16,7 +16,8 @@ export async function rss2json(url: string): Promise<RSSInfo | undefined> {
 
   const result = xml.parse(data as string)
 
-  let channel = result.rss && result.rss.channel ? result.rss.channel : result.feed
+  const rdf = result["rdf:RDF"]
+  let channel = result.rss && result.rss.channel ? result.rss.channel : (result.feed ?? rdf?.channel)
   if (Array.isArray(channel)) channel = channel[0]
   if (!channel) return
 
@@ -30,7 +31,7 @@ export async function rss2json(url: string): Promise<RSSInfo | undefined> {
     items: [],
   }
 
-  let items = channel.item || channel.entry || []
+  let items = channel.item || channel.entry || rdf?.item || []
   if (items && !Array.isArray(items)) items = [items]
 
   for (let i = 0; i < items.length; i++) {
