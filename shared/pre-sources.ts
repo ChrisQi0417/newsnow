@@ -104,6 +104,16 @@ export const originSources = {
       },
     },
   },
+  github: {
+    name: "GitHub",
+    title: "热门仓库",
+    type: "realtime",
+    column: "tech",
+    color: "slate",
+    interval: Time.Fast,
+    desc: "GitHub Trending daily repositories, descriptions translated to Chinese",
+    home: "https://github.com/trending?since=daily",
+  },
   truthsocial: {
     name: "特朗普 Truth Social",
     title: "特朗普发布",

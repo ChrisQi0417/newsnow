@@ -30,6 +30,7 @@ export const fixedColumnIds = ["focus", "hottest", "realtime"] as const satisfie
 export const hiddenColumns = Object.keys(columns).filter(id => !fixedColumnIds.includes(id as any)) as HiddenColumnID[]
 
 const reliableHottestSources = [
+  "github",
   "truthsocial",
   "reuters",
   "apnews-top",

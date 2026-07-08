@@ -44,24 +44,29 @@ async function translateBatch(texts: string[]): Promise<string[]> {
   }))
 }
 
-export async function translateNewsItemsToChinese(items: NewsItem[]): Promise<NewsItem[]> {
-  const targets = items
-    .map(item => normalizeTitle(String(item.title ?? "")))
-    .filter(title => title && shouldTranslate(title))
-  const uniqueTargets = [...new Set(targets)].filter(title => !translateCache.has(title))
+export async function translateTextsToChinese(texts: string[]): Promise<string[]> {
+  const normalizedTexts = texts.map(text => normalizeTitle(String(text ?? "")))
+  const targets = normalizedTexts.filter(text => text && shouldTranslate(text))
+  const uniqueTargets = [...new Set(targets)].filter(text => !translateCache.has(text))
 
   for (let i = 0; i < uniqueTargets.length; i += 8) {
     const batch = uniqueTargets.slice(i, i + 8)
     try {
       const translated = await translateBatch(batch)
-      batch.forEach((title, index) => {
-        translateCache.set(title, translated[index] || title)
+      batch.forEach((text, index) => {
+        translateCache.set(text, translated[index] || text)
       })
     } catch (e) {
-      logger.warn("failed to translate news titles", e)
-      batch.forEach(title => translateCache.set(title, title))
+      logger.warn("failed to translate texts", e)
+      batch.forEach(text => translateCache.set(text, text))
     }
   }
+
+  return normalizedTexts.map(text => translateCache.get(text) ?? text)
+}
+
+export async function translateNewsItemsToChinese(items: NewsItem[]): Promise<NewsItem[]> {
+  await translateTextsToChinese(items.map(item => String(item.title ?? "")))
 
   return items.map((item) => {
     const originalTitle = normalizeTitle(String(item.title ?? ""))
