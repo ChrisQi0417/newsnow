@@ -31,6 +31,7 @@ export const hiddenColumns = Object.keys(columns).filter(id => !fixedColumnIds.i
 
 const reliableHottestSources = [
   "github",
+  "twitter",
   "truthsocial",
   "reuters",
   "apnews-top",

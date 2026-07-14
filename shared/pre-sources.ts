@@ -20,21 +20,21 @@ export const originSources = {
     type: "realtime",
     column: "china",
     color: "red",
-    interval: Time.Common,
+    interval: Time.Fast,
     desc: "国务院政策和政务原始发布",
     home: "https://www.gov.cn/",
   },
   people: {
     name: "人民网",
     color: "red",
-    interval: Time.Common,
+    interval: Time.Fast,
     home: "https://www.people.com.cn/",
     sub: {
       politics: {
         title: "国内",
         type: "realtime",
         column: "china",
-        home: "https://politics.people.com.cn/",
+        home: "http://politics.people.com.cn/",
       },
       world: {
         title: "国际",
@@ -46,7 +46,7 @@ export const originSources = {
         title: "财经",
         type: "realtime",
         column: "finance",
-        home: "https://finance.people.com.cn/",
+        home: "http://finance.people.com.cn/",
       },
     },
   },
@@ -79,7 +79,7 @@ export const originSources = {
   xinhua: {
     name: "新华社英文",
     color: "red",
-    interval: Time.Common,
+    interval: Time.Fast,
     home: "https://english.news.cn/",
     sub: {
       china: {
@@ -113,6 +113,16 @@ export const originSources = {
     interval: Time.Fast,
     desc: "GitHub Trending daily repositories, descriptions translated to Chinese",
     home: "https://github.com/trending?since=daily",
+  },
+  twitter: {
+    name: "Twitter/X",
+    title: "全球热度",
+    type: "realtime",
+    column: "world",
+    color: "blue",
+    interval: Time.Fast,
+    desc: "Public Twitter/X trending topics from GetDayTrends, with Trends24 fallback",
+    home: "https://getdaytrends.com/",
   },
   truthsocial: {
     name: "特朗普 Truth Social",
@@ -184,8 +194,8 @@ export const originSources = {
   bbcnews: {
     name: "BBC新闻",
     color: "red",
-    interval: Time.Common,
-    desc: "BBC News and BBC World Service feeds, titles translated to Chinese",
+    interval: Time.Fast,
+    desc: "BBC News and BBC World Service global news feeds, titles translated to Chinese",
     home: "https://www.bbc.com/news/world",
     sub: {
       world: {
@@ -197,7 +207,7 @@ export const originSources = {
         title: "国际广播",
         type: "realtime",
         column: "world",
-        home: "http://bbc.com/minute",
+        home: "https://www.bbc.co.uk/programmes/p02nq0gn",
       },
     },
   },
@@ -248,8 +258,8 @@ export const originSources = {
   wsj: {
     name: "华尔街日报",
     color: "slate",
-    interval: Time.Common,
-    desc: "Wall Street Journal RSS feeds, titles translated to Chinese",
+    interval: Time.Fast,
+    desc: "Dow Jones public Wall Street Journal RSS feeds, titles translated to Chinese",
     home: "https://www.wsj.com/news/rss-news-and-feeds",
     sub: {
       news: {

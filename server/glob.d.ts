@@ -20,6 +20,7 @@ declare module 'glob:./sources/{*.ts,**/index.ts}' {
   export const rfi: typeof import('./sources/rfi')
   export const scmp: typeof import('./sources/scmp')
   export const truthsocial: typeof import('./sources/truthsocial')
+  export const twitter: typeof import('./sources/twitter')
   export const unnews: typeof import('./sources/unnews')
   export const wsj: typeof import('./sources/wsj')
   export const xinhua: typeof import('./sources/xinhua')

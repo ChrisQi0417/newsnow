@@ -6,25 +6,25 @@
     "column": "china",
     "home": "https://www.gov.cn/",
     "color": "red",
-    "interval": 1800000
+    "interval": 300000
   },
   "people": {
     "redirect": "people-politics",
     "name": "人民网",
     "type": "realtime",
     "column": "china",
-    "home": "https://politics.people.com.cn/",
+    "home": "http://politics.people.com.cn/",
     "color": "red",
-    "interval": 1800000,
+    "interval": 300000,
     "title": "国内"
   },
   "people-politics": {
     "name": "人民网",
     "type": "realtime",
     "column": "china",
-    "home": "https://politics.people.com.cn/",
+    "home": "http://politics.people.com.cn/",
     "color": "red",
-    "interval": 1800000,
+    "interval": 300000,
     "title": "国内"
   },
   "people-world": {
@@ -33,16 +33,16 @@
     "column": "world",
     "home": "https://world.people.com.cn/",
     "color": "red",
-    "interval": 1800000,
+    "interval": 300000,
     "title": "国际"
   },
   "people-finance": {
     "name": "人民网",
     "type": "realtime",
     "column": "finance",
-    "home": "https://finance.people.com.cn/",
+    "home": "http://finance.people.com.cn/",
     "color": "red",
-    "interval": 1800000,
+    "interval": 300000,
     "title": "财经"
   },
   "chinanews": {
@@ -89,7 +89,7 @@
     "column": "china",
     "home": "https://english.news.cn/",
     "color": "red",
-    "interval": 1800000,
+    "interval": 300000,
     "title": "China"
   },
   "xinhua-china": {
@@ -98,7 +98,7 @@
     "column": "china",
     "home": "https://english.news.cn/",
     "color": "red",
-    "interval": 1800000,
+    "interval": 300000,
     "title": "China"
   },
   "xinhua-world": {
@@ -107,7 +107,7 @@
     "column": "world",
     "home": "https://english.news.cn/",
     "color": "red",
-    "interval": 1800000,
+    "interval": 300000,
     "title": "World"
   },
   "xinhua-business": {
@@ -116,7 +116,7 @@
     "column": "finance",
     "home": "https://english.news.cn/",
     "color": "red",
-    "interval": 1800000,
+    "interval": 300000,
     "title": "Business"
   },
   "xinhua-tech": {
@@ -125,7 +125,7 @@
     "column": "tech",
     "home": "https://english.news.cn/",
     "color": "red",
-    "interval": 1800000,
+    "interval": 300000,
     "title": "Sci-Tech"
   },
   "github": {
@@ -136,6 +136,16 @@
     "column": "tech",
     "home": "https://github.com/trending?since=daily",
     "color": "slate",
+    "interval": 300000
+  },
+  "twitter": {
+    "title": "全球热度",
+    "name": "Twitter/X",
+    "type": "realtime",
+    "desc": "Public Twitter/X trending topics from GetDayTrends, with Trends24 fallback",
+    "column": "world",
+    "home": "https://getdaytrends.com/",
+    "color": "blue",
     "interval": 300000
   },
   "truthsocial": {
@@ -231,31 +241,31 @@
     "redirect": "bbcnews-world",
     "name": "BBC新闻",
     "type": "realtime",
-    "desc": "BBC News and BBC World Service feeds, titles translated to Chinese",
+    "desc": "BBC News and BBC World Service global news feeds, titles translated to Chinese",
     "column": "world",
     "home": "https://www.bbc.com/news/world",
     "color": "red",
-    "interval": 1800000,
+    "interval": 300000,
     "title": "国际"
   },
   "bbcnews-world": {
     "name": "BBC新闻",
     "type": "realtime",
-    "desc": "BBC News and BBC World Service feeds, titles translated to Chinese",
+    "desc": "BBC News and BBC World Service global news feeds, titles translated to Chinese",
     "column": "world",
     "home": "https://www.bbc.com/news/world",
     "color": "red",
-    "interval": 1800000,
+    "interval": 300000,
     "title": "国际"
   },
   "bbcnews-worldservice": {
     "name": "BBC新闻",
     "type": "realtime",
-    "desc": "BBC News and BBC World Service feeds, titles translated to Chinese",
+    "desc": "BBC News and BBC World Service global news feeds, titles translated to Chinese",
     "column": "world",
-    "home": "http://bbc.com/minute",
+    "home": "https://www.bbc.co.uk/programmes/p02nq0gn",
     "color": "red",
-    "interval": 1800000,
+    "interval": 300000,
     "title": "国际广播"
   },
   "bloomberg": {
@@ -333,41 +343,41 @@
     "redirect": "wsj-news",
     "name": "华尔街日报",
     "type": "realtime",
-    "desc": "Wall Street Journal RSS feeds, titles translated to Chinese",
+    "desc": "Dow Jones public Wall Street Journal RSS feeds, titles translated to Chinese",
     "column": "world",
     "home": "https://www.wsj.com/news/rss-news-and-feeds",
     "color": "slate",
-    "interval": 1800000,
+    "interval": 300000,
     "title": "新闻"
   },
   "wsj-news": {
     "name": "华尔街日报",
     "type": "realtime",
-    "desc": "Wall Street Journal RSS feeds, titles translated to Chinese",
+    "desc": "Dow Jones public Wall Street Journal RSS feeds, titles translated to Chinese",
     "column": "world",
     "home": "https://www.wsj.com/news/rss-news-and-feeds",
     "color": "slate",
-    "interval": 1800000,
+    "interval": 300000,
     "title": "新闻"
   },
   "wsj-world": {
     "name": "华尔街日报",
     "type": "realtime",
-    "desc": "Wall Street Journal RSS feeds, titles translated to Chinese",
+    "desc": "Dow Jones public Wall Street Journal RSS feeds, titles translated to Chinese",
     "column": "world",
     "home": "https://www.wsj.com/news/rss-news-and-feeds",
     "color": "slate",
-    "interval": 1800000,
+    "interval": 300000,
     "title": "国际"
   },
   "wsj-markets": {
     "name": "华尔街日报",
     "type": "realtime",
-    "desc": "Wall Street Journal RSS feeds, titles translated to Chinese",
+    "desc": "Dow Jones public Wall Street Journal RSS feeds, titles translated to Chinese",
     "column": "finance",
     "home": "https://www.wsj.com/news/rss-news-and-feeds",
     "color": "slate",
-    "interval": 1800000,
+    "interval": 300000,
     "title": "市场"
   },
   "nikkei": {
