@@ -1,4 +1,14 @@
 {
+  "markets": {
+    "title": "主要指数",
+    "name": "全球股市",
+    "type": "realtime",
+    "desc": "全球主要股票指数公开行情，按交易所权限标注实时或延迟状态",
+    "column": "finance",
+    "home": "https://www.tradingview.com/markets/world-stocks/world-stock-markets/",
+    "color": "cyan",
+    "interval": 120000
+  },
   "govcn": {
     "name": "中国政府网",
     "type": "realtime",

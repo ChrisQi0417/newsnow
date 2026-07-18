@@ -15,6 +15,16 @@ const Time = {
 // Curated for factuality: prefer wire services, official primary releases,
 // public international broadcasters, and accountable newsrooms over social hot lists.
 export const originSources = {
+  markets: {
+    name: "全球股市",
+    title: "主要指数",
+    type: "realtime",
+    column: "finance",
+    color: "cyan",
+    interval: Time.Realtime,
+    desc: "全球主要股票指数公开行情，按交易所权限标注实时或延迟状态",
+    home: "https://www.tradingview.com/markets/world-stocks/world-stock-markets/",
+  },
   govcn: {
     name: "中国政府网",
     type: "realtime",
