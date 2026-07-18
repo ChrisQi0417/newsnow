@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { marketQuotesToNewsItems, parseTencentQuotes, parseTradingViewQuotes } from "./markets"
+import { marketQuotesToNewsItems, parseTencentQuotes, parseTradingViewQuotes } from "../server/sources/markets"
 
 describe("global market quotes", () => {
   it("maps TradingView values and quote delay into Chinese display items", () => {
