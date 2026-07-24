@@ -31,6 +31,7 @@ export interface PrimitiveMetadata {
   updatedTime: number
   data: Record<FixedColumnID, SourceID[]>
   action: "init" | "manual" | "sync"
+  schemaVersion?: number
 }
 
 export type FixedColumnID = (typeof fixedColumnIds)[number]

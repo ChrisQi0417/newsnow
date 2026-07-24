@@ -28,6 +28,15 @@ export const columns = {
 
 export const fixedColumnIds = ["focus", "hottest", "realtime"] as const satisfies Partial<ColumnID>[]
 export const hiddenColumns = Object.keys(columns).filter(id => !fixedColumnIds.includes(id as any)) as HiddenColumnID[]
+export const metadataSchemaVersion = 1
+
+export function placeSourceAfter<T extends string>(items: T[], source: T, predecessor: T) {
+  if (!items.includes(source)) return items
+  const reordered = items.filter(id => id !== source)
+  const predecessorIndex = reordered.indexOf(predecessor)
+  reordered.splice(predecessorIndex >= 0 ? predecessorIndex + 1 : 0, 0, source)
+  return reordered
+}
 
 export function mergeNewSourcesByDefaultOrder<T extends string>(stored: T[], defaults: T[]) {
   const merged = [...new Set(stored.filter(id => defaults.includes(id)))]

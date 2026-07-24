@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { mergeNewSourcesByDefaultOrder } from "../shared/metadata"
+import { mergeNewSourcesByDefaultOrder, placeSourceAfter } from "../shared/metadata"
 
 describe("stored column migration", () => {
   it("inserts a new source beside its default predecessor", () => {
@@ -16,5 +16,12 @@ describe("stored column migration", () => {
 
     expect(mergeNewSourcesByDefaultOrder(stored, defaults))
       .toEqual(["reuters", "markets", "ai", "govcn"])
+  })
+
+  it("moves the AI source once when an earlier release appended it", () => {
+    const stored = ["markets", "truthsocial", "reuters", "ai", "govcn"]
+
+    expect(placeSourceAfter(stored, "ai", "markets"))
+      .toEqual(["markets", "ai", "truthsocial", "reuters", "govcn"])
   })
 })
