@@ -39,6 +39,7 @@ const pwaOption: Partial<VitePWAOptions> = {
   workbox: {
     cleanupOutdatedCaches: true,
     clientsClaim: true,
+    importScripts: ["sw-reload.js"],
     navigateFallbackDenylist: [/^\/api/],
     skipWaiting: true,
   },
