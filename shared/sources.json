@@ -9,6 +9,16 @@
     "color": "cyan",
     "interval": 120000
   },
+  "ai": {
+    "title": "最新动态",
+    "name": "美国 AI",
+    "type": "realtime",
+    "desc": "以美国为重点的人工智能动态，聚合官方发布与路透社报道并翻译为中文",
+    "column": "tech",
+    "home": "https://openai.com/news/",
+    "color": "blue",
+    "interval": 300000
+  },
   "govcn": {
     "name": "中国政府网",
     "type": "realtime",

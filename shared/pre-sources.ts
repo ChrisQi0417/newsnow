@@ -25,6 +25,16 @@ export const originSources = {
     desc: "全球主要股票指数公开行情，按交易所权限标注实时或延迟状态",
     home: "https://www.tradingview.com/markets/world-stocks/world-stock-markets/",
   },
+  ai: {
+    name: "美国 AI",
+    title: "最新动态",
+    type: "realtime",
+    column: "tech",
+    color: "blue",
+    interval: Time.Fast,
+    desc: "以美国为重点的人工智能动态，聚合官方发布与路透社报道并翻译为中文",
+    home: "https://openai.com/news/",
+  },
   govcn: {
     name: "中国政府网",
     type: "realtime",
