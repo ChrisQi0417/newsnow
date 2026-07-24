@@ -29,6 +29,31 @@ export const columns = {
 export const fixedColumnIds = ["focus", "hottest", "realtime"] as const satisfies Partial<ColumnID>[]
 export const hiddenColumns = Object.keys(columns).filter(id => !fixedColumnIds.includes(id as any)) as HiddenColumnID[]
 
+export function mergeNewSourcesByDefaultOrder<T extends string>(stored: T[], defaults: T[]) {
+  const merged = [...new Set(stored.filter(id => defaults.includes(id)))]
+
+  defaults.forEach((id, defaultIndex) => {
+    if (merged.includes(id)) return
+
+    const predecessor = defaults
+      .slice(0, defaultIndex)
+      .reverse()
+      .find(candidate => merged.includes(candidate))
+    if (predecessor) {
+      merged.splice(merged.indexOf(predecessor) + 1, 0, id)
+      return
+    }
+
+    const successor = defaults
+      .slice(defaultIndex + 1)
+      .find(candidate => merged.includes(candidate))
+    if (successor) merged.splice(merged.indexOf(successor), 0, id)
+    else merged.push(id)
+  })
+
+  return merged
+}
+
 const reliableHottestSources = [
   "github",
   "twitter",
