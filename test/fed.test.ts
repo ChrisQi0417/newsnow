@@ -27,7 +27,7 @@ describe("federal reserve data", () => {
       "有效联邦基金利率（EFFR）3.63%",
       "担保隔夜融资利率（SOFR）3.64%",
     ])
-    expect(items[0].pubDate).toBe(new Date("2026-07-23T00:00:00Z").getTime())
+    expect(items[0].pubDate).toBe("2026-07-23T12:00:00")
     expect(items[1].extra?.hover).toContain("交易量：1,040 亿美元")
     expect(items[2].extra?.hover).toContain("交易量：2.971 万亿美元")
     expect(items[2].extra?.hover).toContain("数据源：纽约联储")

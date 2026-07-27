@@ -52,9 +52,9 @@ function asFiniteNumber(value: unknown) {
   return Number.isFinite(number) ? number : undefined
 }
 
-function toTimestamp(date: string) {
-  const timestamp = new Date(`${date}T00:00:00Z`).getTime()
-  return Number.isFinite(timestamp) ? timestamp : undefined
+function toCalendarDate(date: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return
+  return `${date}T12:00:00`
 }
 
 function formatPercent(value: number) {
@@ -95,7 +95,7 @@ export function parseFedReferenceRates(response: FedReferenceRateResponse): News
       id: "fed-target-range",
       title: `联邦基金目标区间 ${formatPercent(targetFrom)}-${formatPercent(targetTo)}`,
       url: rateUrls.target,
-      pubDate: toTimestamp(effr.effectiveDate),
+      pubDate: toCalendarDate(effr.effectiveDate),
       extra: rateExtra(effr, "当前政策目标"),
     })
   }
@@ -106,7 +106,7 @@ export function parseFedReferenceRates(response: FedReferenceRateResponse): News
       id: "fed-effr",
       title: `有效联邦基金利率（EFFR）${formatPercent(effrRate)}`,
       url: rateUrls.effr,
-      pubDate: toTimestamp(effr.effectiveDate),
+      pubDate: toCalendarDate(effr.effectiveDate),
       extra: rateExtra(effr, "纽约联储日度数据"),
     })
   }
@@ -117,7 +117,7 @@ export function parseFedReferenceRates(response: FedReferenceRateResponse): News
       id: "fed-sofr",
       title: `担保隔夜融资利率（SOFR）${formatPercent(sofrRate)}`,
       url: rateUrls.sofr,
-      pubDate: toTimestamp(sofr.effectiveDate),
+      pubDate: toCalendarDate(sofr.effectiveDate),
       extra: rateExtra(sofr, "纽约联储日度数据"),
     })
   }
