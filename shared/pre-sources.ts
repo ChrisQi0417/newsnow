@@ -35,6 +35,16 @@ export const originSources = {
     desc: "以美国为重点的人工智能动态，聚合官方发布与路透社报道并翻译为中文",
     home: "https://openai.com/news/",
   },
+  fed: {
+    name: "美联储",
+    title: "利率与动态",
+    type: "realtime",
+    column: "finance",
+    color: "green",
+    interval: Time.Fast,
+    desc: "纽约联储参考利率与美联储官方公告、讲话、证词，英文标题翻译为中文",
+    home: "https://www.federalreserve.gov/",
+  },
   govcn: {
     name: "中国政府网",
     type: "realtime",

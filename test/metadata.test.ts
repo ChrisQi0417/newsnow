@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest"
 import { mergeNewSourcesByDefaultOrder, placeSourceAfter } from "../shared/metadata"
 
 describe("stored column migration", () => {
-  it("inserts a new source beside its default predecessor", () => {
+  it("inserts new sources beside their default predecessors", () => {
     const stored = ["markets", "truthsocial", "reuters", "govcn"]
-    const defaults = ["markets", "ai", "govcn", "truthsocial", "reuters"]
+    const defaults = ["markets", "ai", "fed", "govcn", "truthsocial", "reuters"]
 
     expect(mergeNewSourcesByDefaultOrder(stored, defaults))
-      .toEqual(["markets", "ai", "truthsocial", "reuters", "govcn"])
+      .toEqual(["markets", "ai", "fed", "truthsocial", "reuters", "govcn"])
   })
 
   it("keeps the user's order and removes obsolete and duplicate sources", () => {

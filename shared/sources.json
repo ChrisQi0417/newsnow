@@ -19,6 +19,16 @@
     "color": "blue",
     "interval": 300000
   },
+  "fed": {
+    "title": "利率与动态",
+    "name": "美联储",
+    "type": "realtime",
+    "desc": "纽约联储参考利率与美联储官方公告、讲话、证词，英文标题翻译为中文",
+    "column": "finance",
+    "home": "https://www.federalreserve.gov/",
+    "color": "green",
+    "interval": 300000
+  },
   "govcn": {
     "name": "中国政府网",
     "type": "realtime",
