@@ -17,6 +17,32 @@ describe("global market quotes", () => {
     expect(item.extra?.hover).toContain("数据源：TradingView")
   })
 
+  it("displays the dollar index and spot gold as live Chinese market items", () => {
+    const quotes = parseTradingViewQuotes({
+      data: [
+        {
+          s: "TVC:DXY",
+          d: ["DXY", "U.S. Dollar Currency Index", 99.932, 0.1302579, 0.13, "USD", "streaming", "America/New_York", 1785772704],
+        },
+        {
+          s: "OANDA:XAUUSD",
+          d: ["XAUUSD", "Gold", 4037.27, -0.1951713, -7.895, "USD", "streaming", "America/New_York", 1785772694],
+        },
+      ],
+    })
+    const items = marketQuotesToNewsItems(quotes)
+
+    expect(items.map(item => item.title)).toEqual([
+      "外汇｜美元指数 99.93 ▲ +0.13%",
+      "贵金属｜现货黄金 4,037.27 ▼ -0.20%",
+    ])
+    expect(items.map(item => item.url)).toEqual([
+      "https://www.tradingview.com/symbols/TVC-DXY/",
+      "https://www.tradingview.com/symbols/OANDA-XAUUSD/",
+    ])
+    expect(items.every(item => item.extra?.info.endsWith("· 实时"))).toBe(true)
+  })
+
   it("parses the Tencent fallback without depending on its GBK market name", () => {
     vi.setSystemTime(new Date("2026-07-18T08:00:00Z"))
     const quotes = parseTencentQuotes("v_usINX=\"200~ignored~.INX~7457.69~7533.77~~~~~~~~~~~~~~~~~~~~~~~~~~2026-07-17 16:43:30~-76.08~-1.01~\";")

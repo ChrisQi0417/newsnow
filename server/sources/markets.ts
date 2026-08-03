@@ -42,6 +42,8 @@ const marketConfigs: MarketConfig[] = [
   { symbol: "SP:SPX", fallbackSymbol: "usINX", region: "美国", name: "标普500", currency: "USD", timezone: "America/New_York" },
   { symbol: "TVC:DJI", fallbackSymbol: "usDJI", region: "美国", name: "道琼斯", currency: "USD", timezone: "America/New_York" },
   { symbol: "NASDAQ:IXIC", fallbackSymbol: "usIXIC", region: "美国", name: "纳斯达克综合", currency: "USD", timezone: "America/New_York" },
+  { symbol: "TVC:DXY", region: "外汇", name: "美元指数", currency: "USD", timezone: "America/New_York" },
+  { symbol: "OANDA:XAUUSD", region: "贵金属", name: "现货黄金", currency: "USD", timezone: "America/New_York" },
   { symbol: "BMFBOVESPA:IBOV", region: "巴西", name: "Bovespa", currency: "BRL", timezone: "America/Sao_Paulo" },
 ]
 
