@@ -54,6 +54,9 @@ export function preprocessMetadata(target: PrimitiveMetadata) {
   if ((target.schemaVersion ?? 0) < 1) {
     data.realtime = placeSourceAfter(data.realtime, "ai", "markets")
   }
+  if ((target.schemaVersion ?? 0) < 2) {
+    data.realtime = placeSourceAfter(data.realtime, "github", "fed")
+  }
 
   return {
     data,

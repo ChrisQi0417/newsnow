@@ -45,6 +45,16 @@ export const originSources = {
     desc: "纽约联储参考利率与美联储官方公告、讲话、证词，英文标题翻译为中文",
     home: "https://www.federalreserve.gov/",
   },
+  github: {
+    name: "GitHub Trending",
+    title: "今日热门仓库",
+    type: "realtime",
+    column: "tech",
+    color: "slate",
+    interval: Time.Fast,
+    desc: "GitHub 官方每日热门仓库，项目说明翻译为中文",
+    home: "https://github.com/trending",
+  },
   govcn: {
     name: "中国政府网",
     type: "realtime",
@@ -133,16 +143,6 @@ export const originSources = {
         column: "tech",
       },
     },
-  },
-  github: {
-    name: "GitHub",
-    title: "热门仓库",
-    type: "realtime",
-    column: "tech",
-    color: "slate",
-    interval: Time.Fast,
-    desc: "GitHub Trending daily repositories, descriptions translated to Chinese",
-    home: "https://github.com/trending?since=daily",
   },
   twitter: {
     name: "Twitter/X",

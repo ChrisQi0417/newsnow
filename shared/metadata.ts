@@ -28,7 +28,7 @@ export const columns = {
 
 export const fixedColumnIds = ["focus", "hottest", "realtime"] as const satisfies Partial<ColumnID>[]
 export const hiddenColumns = Object.keys(columns).filter(id => !fixedColumnIds.includes(id as any)) as HiddenColumnID[]
-export const metadataSchemaVersion = 1
+export const metadataSchemaVersion = 2
 
 export function placeSourceAfter<T extends string>(items: T[], source: T, predecessor: T) {
   if (!items.includes(source)) return items

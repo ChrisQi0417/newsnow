@@ -4,10 +4,10 @@ import { mergeNewSourcesByDefaultOrder, placeSourceAfter } from "../shared/metad
 describe("stored column migration", () => {
   it("inserts new sources beside their default predecessors", () => {
     const stored = ["markets", "truthsocial", "reuters", "govcn"]
-    const defaults = ["markets", "ai", "fed", "govcn", "truthsocial", "reuters"]
+    const defaults = ["markets", "ai", "fed", "github", "govcn", "truthsocial", "reuters"]
 
     expect(mergeNewSourcesByDefaultOrder(stored, defaults))
-      .toEqual(["markets", "ai", "fed", "truthsocial", "reuters", "govcn"])
+      .toEqual(["markets", "ai", "fed", "github", "truthsocial", "reuters", "govcn"])
   })
 
   it("keeps the user's order and removes obsolete and duplicate sources", () => {
@@ -23,5 +23,12 @@ describe("stored column migration", () => {
 
     expect(placeSourceAfter(stored, "ai", "markets"))
       .toEqual(["markets", "ai", "truthsocial", "reuters", "govcn"])
+  })
+
+  it("moves GitHub Trending after the Federal Reserve card", () => {
+    const stored = ["markets", "ai", "fed", "truthsocial", "github", "reuters"]
+
+    expect(placeSourceAfter(stored, "github", "fed"))
+      .toEqual(["markets", "ai", "fed", "github", "truthsocial", "reuters"])
   })
 })

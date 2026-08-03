@@ -29,6 +29,16 @@
     "color": "green",
     "interval": 300000
   },
+  "github": {
+    "title": "今日热门仓库",
+    "name": "GitHub Trending",
+    "type": "realtime",
+    "desc": "GitHub 官方每日热门仓库，项目说明翻译为中文",
+    "column": "tech",
+    "home": "https://github.com/trending",
+    "color": "slate",
+    "interval": 300000
+  },
   "govcn": {
     "name": "中国政府网",
     "type": "realtime",
@@ -157,16 +167,6 @@
     "color": "red",
     "interval": 300000,
     "title": "Sci-Tech"
-  },
-  "github": {
-    "title": "热门仓库",
-    "name": "GitHub",
-    "type": "realtime",
-    "desc": "GitHub Trending daily repositories, descriptions translated to Chinese",
-    "column": "tech",
-    "home": "https://github.com/trending?since=daily",
-    "color": "slate",
-    "interval": 300000
   },
   "twitter": {
     "title": "全球热度",
