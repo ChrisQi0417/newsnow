@@ -35,6 +35,16 @@ export const originSources = {
     desc: "Pi Network 官方博客公告，英文标题翻译为中文；不收录价格预测和推广站点",
     home: "https://minepi.com/blog/",
   },
+  apple: {
+    name: "Apple News",
+    title: "今日要闻",
+    type: "realtime",
+    column: "world",
+    color: "rose",
+    interval: Time.Fast,
+    desc: "Apple News 编辑团队每日简报，来自 Apple News Today，英文标题翻译为中文",
+    home: "https://podcasts.apple.com/us/podcast/apple-news-today/id1473872585",
+  },
   ai: {
     name: "美国 AI",
     title: "最新动态",

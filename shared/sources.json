@@ -19,6 +19,16 @@
     "color": "violet",
     "interval": 300000
   },
+  "apple": {
+    "title": "今日要闻",
+    "name": "Apple News",
+    "type": "realtime",
+    "desc": "Apple News 编辑团队每日简报，来自 Apple News Today，英文标题翻译为中文",
+    "column": "world",
+    "home": "https://podcasts.apple.com/us/podcast/apple-news-today/id1473872585",
+    "color": "rose",
+    "interval": 300000
+  },
   "ai": {
     "title": "最新动态",
     "name": "美国 AI",

@@ -2,17 +2,18 @@ import { describe, expect, it } from "vitest"
 import { mergeNewSourcesByDefaultOrder, metadata, placeSourceAfter } from "../shared/metadata"
 
 describe("stored column migration", () => {
-  it("includes Pi Network in realtime and hottest defaults", () => {
-    expect(metadata.realtime.sources.slice(0, 3)).toEqual(["markets", "pi", "ai"])
+  it("includes Pi Network and Apple News in realtime and hottest defaults", () => {
+    expect(metadata.realtime.sources.slice(0, 4)).toEqual(["markets", "pi", "apple", "ai"])
     expect(metadata.hottest.sources).toContain("pi")
+    expect(metadata.hottest.sources).toContain("apple")
   })
 
   it("inserts new sources beside their default predecessors", () => {
     const stored = ["markets", "truthsocial", "reuters", "govcn"]
-    const defaults = ["markets", "pi", "ai", "fed", "github", "govcn", "truthsocial", "reuters"]
+    const defaults = ["markets", "pi", "apple", "ai", "fed", "github", "govcn", "truthsocial", "reuters"]
 
     expect(mergeNewSourcesByDefaultOrder(stored, defaults))
-      .toEqual(["markets", "pi", "ai", "fed", "github", "truthsocial", "reuters", "govcn"])
+      .toEqual(["markets", "pi", "apple", "ai", "fed", "github", "truthsocial", "reuters", "govcn"])
   })
 
   it("keeps the user's order and removes obsolete and duplicate sources", () => {

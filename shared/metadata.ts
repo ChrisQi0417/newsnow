@@ -68,6 +68,7 @@ const reliableHottestSources = [
   "twitter",
   "truthsocial",
   "pi",
+  "apple",
   "reuters",
   "apnews-top",
   "apnews-world",
