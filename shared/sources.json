@@ -9,6 +9,16 @@
     "color": "cyan",
     "interval": 120000
   },
+  "pi": {
+    "title": "官方动态",
+    "name": "Pi Network",
+    "type": "realtime",
+    "desc": "Pi Network 官方博客公告，英文标题翻译为中文；不收录价格预测和推广站点",
+    "column": "finance",
+    "home": "https://minepi.com/blog/",
+    "color": "violet",
+    "interval": 300000
+  },
   "ai": {
     "title": "最新动态",
     "name": "美国 AI",

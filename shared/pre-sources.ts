@@ -25,6 +25,16 @@ export const originSources = {
     desc: "全球主要股票指数公开行情，按交易所权限标注实时或延迟状态",
     home: "https://www.tradingview.com/markets/world-stocks/world-stock-markets/",
   },
+  pi: {
+    name: "Pi Network",
+    title: "官方动态",
+    type: "realtime",
+    column: "finance",
+    color: "violet",
+    interval: Time.Fast,
+    desc: "Pi Network 官方博客公告，英文标题翻译为中文；不收录价格预测和推广站点",
+    home: "https://minepi.com/blog/",
+  },
   ai: {
     name: "美国 AI",
     title: "最新动态",
