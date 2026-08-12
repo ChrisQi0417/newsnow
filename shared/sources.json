@@ -189,12 +189,12 @@
     "title": "Sci-Tech"
   },
   "twitter": {
-    "title": "全球热度",
+    "title": "Tibo 与 OpenAI",
     "name": "Twitter/X",
     "type": "realtime",
-    "desc": "Public Twitter/X trending topics from GetDayTrends, with Trends24 fallback",
-    "column": "world",
-    "home": "https://getdaytrends.com/",
+    "desc": "仅收录 Tibo（@thsottiaux）和 OpenAI 官方账号（@OpenAI）的 X 帖子，并翻译为中文",
+    "column": "tech",
+    "home": "https://x.com/thsottiaux",
     "color": "blue",
     "interval": 300000
   },

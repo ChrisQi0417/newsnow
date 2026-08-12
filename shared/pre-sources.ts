@@ -166,13 +166,13 @@ export const originSources = {
   },
   twitter: {
     name: "Twitter/X",
-    title: "全球热度",
+    title: "Tibo 与 OpenAI",
     type: "realtime",
-    column: "world",
+    column: "tech",
     color: "blue",
     interval: Time.Fast,
-    desc: "Public Twitter/X trending topics from GetDayTrends, with Trends24 fallback",
-    home: "https://getdaytrends.com/",
+    desc: "仅收录 Tibo（@thsottiaux）和 OpenAI 官方账号（@OpenAI）的 X 帖子，并翻译为中文",
+    home: "https://x.com/thsottiaux",
   },
   truthsocial: {
     name: "特朗普 Truth Social",
