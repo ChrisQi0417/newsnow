@@ -1,7 +1,5 @@
 import { load } from "cheerio"
 import type { NewsItem } from "@shared/types"
-import { translateNewsItemsToChinese } from "../utils/translate"
-import { restoreAIProperNames } from "./ai"
 
 export interface XAccount {
   displayName: string
@@ -35,13 +33,6 @@ interface EmbeddedTimelineData {
   }
 }
 
-interface BingTranslatorAuth {
-  expiresAt: number
-  ig: string
-  key: string
-  token: string
-}
-
 export const fixedXAccounts: readonly XAccount[] = [
   {
     displayName: "Tibo",
@@ -60,9 +51,6 @@ const browserHeaders = {
   "Accept-Language": "en-US,en;q=0.9",
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138.0.0.0 Safari/537.36",
 }
-const chineseText = /[\u3400-\u9FFF]/
-const latinText = /[a-z]/i
-let bingTranslatorAuth: BingTranslatorAuth | undefined
 
 function normalizeText(value: string) {
   const entities: Record<string, string> = {
@@ -175,170 +163,6 @@ export function parseXEmbeddedProfile(html: string, account: XAccount) {
   return curateFixedXPosts(items)
 }
 
-export function restoreXProperNames(originalTitle: string, translatedTitle: string) {
-  let restored = restoreAIProperNames(originalTitle, translatedTitle)
-  if (/\bTibo\b/i.test(originalTitle)) restored = restored.replace(/蒂博|提博|蒂波/g, "Tibo")
-  if (/\bOpenAI\b/i.test(originalTitle)) restored = restored.replace(/开放式?人工智能|开放\s*AI/gi, "OpenAI")
-  if (/\bChatGPT\b/i.test(originalTitle)) restored = restored.replace(/聊天\s*GPT/gi, "ChatGPT")
-  if (/\bCodex\b/i.test(originalTitle)) restored = restored.replace(/法典|编解码器/g, "Codex")
-  restored = restored.replace(/(OpenAI|ChatGPT|Codex)(?=OpenAI|ChatGPT|Codex)/g, "$1 ")
-  return normalizeText(restored)
-}
-
-export function readXFallbackTranslation(data: unknown) {
-  if (!Array.isArray(data)) return ""
-  if (Array.isArray(data[0]) && typeof data[0][0] === "string") return normalizeText(data[0][0])
-  return normalizeText(data.filter(value => typeof value === "string").join(""))
-}
-
-export function readXMyMemoryTranslation(data: unknown) {
-  if (!data || typeof data !== "object") return ""
-  const translatedText = (data as { responseData?: { translatedText?: unknown } }).responseData?.translatedText
-  return typeof translatedText === "string" ? normalizeText(translatedText) : ""
-}
-
-export function readXReaderTranslation(raw: string) {
-  const markdown = raw.split("Markdown Content:").at(1)?.trim()
-  if (!markdown) return ""
-  try {
-    return readXFallbackTranslation(JSON.parse(markdown))
-  } catch {
-    return ""
-  }
-}
-
-export function parseBingTranslatorPage(html: string, now = Date.now()): BingTranslatorAuth | undefined {
-  const ig = html.match(/IG:"([A-F\d]+)"/)?.[1]
-  const helper = html.match(/params_AbusePreventionHelper\s*=\s*\[(\d+),"([\w-]+)",(\d+)\]/)
-  if (!ig || !helper) return
-  return {
-    expiresAt: now + Number(helper[3]),
-    ig,
-    key: helper[1],
-    token: helper[2],
-  }
-}
-
-export function readBingTranslation(data: unknown) {
-  if (!Array.isArray(data)) return ""
-  const translated = data[0]?.translations?.[0]?.text
-  return typeof translated === "string" ? normalizeText(translated) : ""
-}
-
-async function getBingTranslatorAuth() {
-  if (bingTranslatorAuth && bingTranslatorAuth.expiresAt > Date.now() + 60_000) return bingTranslatorAuth
-  const html = await myFetch<string>("https://www.bing.com/translator", {
-    responseType: "text",
-    headers: browserHeaders,
-    retry: 1,
-    timeout: 8000,
-  })
-  const auth = parseBingTranslatorPage(html)
-  if (!auth) throw new Error("Cannot parse Bing translator token")
-  bingTranslatorAuth = auth
-  return auth
-}
-
-async function translateXTextWithBing(text: string, auth: BingTranslatorAuth) {
-  const url = new URL("https://www.bing.com/ttranslatev3")
-  url.searchParams.set("isVertical", "1")
-  url.searchParams.set("IG", auth.ig)
-  url.searchParams.set("IID", "translator.5023.1")
-  const data = await myFetch<unknown>(url, {
-    method: "POST",
-    responseType: "json",
-    headers: {
-      ...browserHeaders,
-      Accept: "application/json",
-      Origin: "https://www.bing.com",
-      Referer: "https://www.bing.com/translator",
-    },
-    body: new URLSearchParams({
-      fromLang: "auto-detect",
-      key: auth.key,
-      text,
-      to: "zh-Hans",
-      token: auth.token,
-      tryFetchingGenderDebiasedTranslations: "true",
-    }),
-    retry: 1,
-    timeout: 8000,
-  })
-  return readBingTranslation(data)
-}
-
-async function translateXTextFallback(text: string) {
-  try {
-    const targetUrl = new URL("https://clients5.google.com/translate_a/t")
-    targetUrl.searchParams.set("client", "dict-chrome-ex")
-    targetUrl.searchParams.set("sl", "auto")
-    targetUrl.searchParams.set("tl", "zh-CN")
-    targetUrl.searchParams.set("q", text)
-    const readerData = await myFetch<string>(`https://r.jina.ai/${targetUrl.href}`, {
-      responseType: "text",
-      retry: 1,
-      timeout: 10000,
-    })
-    const readerTranslation = readXReaderTranslation(readerData)
-    if (chineseText.test(readerTranslation)) return readerTranslation
-  } catch (error) {
-    logger.warn("failed to translate X post through reader", error)
-  }
-
-  const myMemoryUrl = new URL("https://api.mymemory.translated.net/get")
-  myMemoryUrl.searchParams.set("q", text)
-  myMemoryUrl.searchParams.set("langpair", "en|zh-CN")
-  const myMemoryData = await myFetch<unknown>(myMemoryUrl, {
-    responseType: "json",
-    retry: 1,
-    timeout: 6000,
-  })
-  return readXMyMemoryTranslation(myMemoryData)
-}
-
-async function translateFixedXPosts(items: NewsItem[]) {
-  const translated: NewsItem[] = []
-  for (let index = 0; index < items.length; index += 2) {
-    translated.push(...await translateNewsItemsToChinese(items.slice(index, index + 2)))
-  }
-
-  const untranslatedIndexes = translated
-    .map((item, index) => ({ index, title: normalizeText(String(item.title)) }))
-    .filter(({ title }) => latinText.test(title) && !chineseText.test(title))
-    .map(({ index }) => index)
-
-  let bingAuth: BingTranslatorAuth | undefined
-  try {
-    bingAuth = await getBingTranslatorAuth()
-  } catch (error) {
-    logger.warn("failed to initialize Bing translator", error)
-  }
-
-  for (let offset = 0; offset < untranslatedIndexes.length; offset += 3) {
-    await Promise.all(untranslatedIndexes.slice(offset, offset + 3).map(async (index) => {
-      const item = translated[index]
-      try {
-        const originalTitle = normalizeText(String(items[index].title))
-        let fallbackTitle = bingAuth ? await translateXTextWithBing(originalTitle, bingAuth) : ""
-        if (!chineseText.test(fallbackTitle)) fallbackTitle = await translateXTextFallback(originalTitle)
-        if (!fallbackTitle || !chineseText.test(fallbackTitle)) return
-        translated[index] = {
-          ...item,
-          title: fallbackTitle,
-          extra: {
-            ...item.extra,
-            hover: `原文：${items[index].title}\n${item.extra?.hover ?? ""}`.trim(),
-          },
-        }
-      } catch (error) {
-        logger.warn("failed to translate X post with fallback", error)
-      }
-    }))
-  }
-
-  return translated
-}
-
 async function fetchAccountPosts(account: XAccount) {
   const profileUrl = `https://x.com/${account.handle}`
   try {
@@ -376,9 +200,5 @@ export default defineSource(async () => {
 
   const items = curateFixedXPosts(results.flat())
   if (!items.length) throw new Error("Cannot fetch Tibo or OpenAI X posts")
-  const translated = await translateFixedXPosts(items)
-  return translated.map((item, index) => ({
-    ...item,
-    title: restoreXProperNames(String(items[index].title), String(item.title)),
-  }))
+  return items
 })

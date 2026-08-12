@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { fixedXAccounts, parseBingTranslatorPage, parseXEmbeddedProfile, parseXProfilePage, readBingTranslation, readXFallbackTranslation, readXMyMemoryTranslation, readXReaderTranslation, restoreXProperNames } from "../server/sources/twitter"
+import { fixedXAccounts, parseXEmbeddedProfile, parseXProfilePage } from "../server/sources/twitter"
 
 const tibo = fixedXAccounts[0]
 const openAI = fixedXAccounts[1]
@@ -66,50 +66,5 @@ describe("fixed X accounts", () => {
       url: "https://x.com/OpenAI/status/2087248033906094175",
       extra: { info: "OpenAI 官方 @OpenAI" },
     })
-  })
-
-  it("restores product and account names after Chinese translation", () => {
-    expect(restoreXProperNames(
-      "Tibo shares an OpenAI Codex and ChatGPT update",
-      "蒂博分享开放人工智能法典和聊天GPT更新",
-    )).toBe("Tibo分享OpenAI Codex和ChatGPT更新")
-  })
-
-  it("reads the compact Google fallback response", () => {
-    expect(readXFallbackTranslation(["为什么转而使用 Codex？"])).toBe("为什么转而使用 Codex？")
-    expect(readXFallbackTranslation([["为什么转而使用 Codex？", "en"]])).toBe("为什么转而使用 Codex？")
-    expect(readXFallbackTranslation({ translated: "invalid" })).toBe("")
-  })
-
-  it("reads the non-Google translation fallback response", () => {
-    expect(readXMyMemoryTranslation({ responseData: { translatedText: "为什么转而使用 Codex？" } }))
-      .toBe("为什么转而使用 Codex？")
-    expect(readXMyMemoryTranslation({ responseData: null })).toBe("")
-  })
-
-  it("reads a translated response forwarded by the reader", () => {
-    expect(readXReaderTranslation(`
-Title:
-
-URL Source: https://clients5.google.com/translate_a/t
-
-Markdown Content:
-["为什么转而使用 Codex？"]
-    `)).toBe("为什么转而使用 Codex？")
-    expect(readXReaderTranslation("invalid response")).toBe("")
-  })
-
-  it("parses Bing translator authentication and translation responses", () => {
-    expect(parseBingTranslatorPage(`
-      <script>var page = {IG:"FC1307A59A6A480EA164D60E367639F4"};</script>
-      <script>params_AbusePreventionHelper = [1786525957721,"WPrTUGGwPyE0Hp1329ypsMSYTwxeb9hI",3600000];</script>
-    `, 1000)).toEqual({
-      expiresAt: 3601000,
-      ig: "FC1307A59A6A480EA164D60E367639F4",
-      key: "1786525957721",
-      token: "WPrTUGGwPyE0Hp1329ypsMSYTwxeb9hI",
-    })
-    expect(readBingTranslation([{ translations: [{ text: "你为什么转向 Codex？" }] }]))
-      .toBe("你为什么转向 Codex？")
   })
 })

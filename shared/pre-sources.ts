@@ -171,7 +171,7 @@ export const originSources = {
     column: "tech",
     color: "blue",
     interval: Time.Fast,
-    desc: "仅收录 Tibo（@thsottiaux）和 OpenAI 官方账号（@OpenAI）的 X 帖子，并翻译为中文",
+    desc: "仅收录 Tibo（@thsottiaux）和 OpenAI 官方账号（@OpenAI）的 X 帖子",
     home: "https://x.com/thsottiaux",
   },
   truthsocial: {
