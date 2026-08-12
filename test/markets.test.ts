@@ -43,6 +43,34 @@ describe("global market quotes", () => {
     expect(items.every(item => item.extra?.info.endsWith("· 实时"))).toBe(true)
   })
 
+  it("keeps the requested market priority regardless of provider response order", () => {
+    const symbols = [
+      "KRX:KOSPI",
+      "TVC:NI225",
+      "SSE:000001",
+      "SP:SPX",
+      "OANDA:XAUUSD",
+      "TVC:DXY",
+      "BMFBOVESPA:IBOV",
+    ]
+    const quotes = parseTradingViewQuotes({
+      data: symbols.map((symbol, index) => ({
+        s: symbol,
+        d: [symbol, symbol, 100 + index, 1, 1, null, "streaming", "UTC", 1785772704],
+      })),
+    })
+
+    expect(marketQuotesToNewsItems(quotes).map(item => item.title.split(" ")[0])).toEqual([
+      "外汇｜美元指数",
+      "贵金属｜现货黄金",
+      "美国｜标普500",
+      "中国｜上证综指",
+      "日本｜日经225",
+      "韩国｜KOSPI",
+      "巴西｜Bovespa",
+    ])
+  })
+
   it("parses the Tencent fallback without depending on its GBK market name", () => {
     vi.setSystemTime(new Date("2026-07-18T08:00:00Z"))
     const quotes = parseTencentQuotes("v_usINX=\"200~ignored~.INX~7457.69~7533.77~~~~~~~~~~~~~~~~~~~~~~~~~~2026-07-17 16:43:30~-76.08~-1.01~\";")

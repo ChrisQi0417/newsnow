@@ -28,10 +28,15 @@ interface TradingViewResponse {
 }
 
 const marketConfigs: MarketConfig[] = [
+  { symbol: "TVC:DXY", region: "外汇", name: "美元指数", currency: "USD", timezone: "America/New_York" },
+  { symbol: "OANDA:XAUUSD", region: "贵金属", name: "现货黄金", currency: "USD", timezone: "America/New_York" },
+  { symbol: "SP:SPX", fallbackSymbol: "usINX", region: "美国", name: "标普500", currency: "USD", timezone: "America/New_York" },
+  { symbol: "TVC:DJI", fallbackSymbol: "usDJI", region: "美国", name: "道琼斯", currency: "USD", timezone: "America/New_York" },
+  { symbol: "NASDAQ:IXIC", fallbackSymbol: "usIXIC", region: "美国", name: "纳斯达克综合", currency: "USD", timezone: "America/New_York" },
   { symbol: "SSE:000001", fallbackSymbol: "sh000001", region: "中国", name: "上证综指", currency: "CNY", timezone: "Asia/Shanghai" },
   { symbol: "SSE:000300", region: "中国", name: "沪深300", currency: "CNY", timezone: "Asia/Shanghai" },
   { symbol: "SZSE:399001", region: "中国", name: "深证成指", currency: "CNY", timezone: "Asia/Shanghai" },
-  { symbol: "TVC:HSI", fallbackSymbol: "hkHSI", region: "香港", name: "恒生指数", currency: "HKD", timezone: "Asia/Hong_Kong" },
+  { symbol: "TVC:HSI", fallbackSymbol: "hkHSI", region: "中国香港", name: "恒生指数", currency: "HKD", timezone: "Asia/Hong_Kong" },
   { symbol: "TVC:NI225", region: "日本", name: "日经225", currency: "JPY", timezone: "Asia/Tokyo" },
   { symbol: "KRX:KOSPI", region: "韩国", name: "KOSPI", currency: "KRW", timezone: "Asia/Seoul" },
   { symbol: "BSE:SENSEX", region: "印度", name: "SENSEX", currency: "INR", timezone: "Asia/Kolkata" },
@@ -39,11 +44,6 @@ const marketConfigs: MarketConfig[] = [
   { symbol: "TVC:UKX", fallbackSymbol: "ukUKX", region: "英国", name: "富时100", currency: "GBP", timezone: "Europe/London" },
   { symbol: "XETR:DAX", region: "德国", name: "DAX", currency: "EUR", timezone: "Europe/Berlin" },
   { symbol: "EURONEXT:PX1", region: "法国", name: "CAC 40", currency: "EUR", timezone: "Europe/Paris" },
-  { symbol: "SP:SPX", fallbackSymbol: "usINX", region: "美国", name: "标普500", currency: "USD", timezone: "America/New_York" },
-  { symbol: "TVC:DJI", fallbackSymbol: "usDJI", region: "美国", name: "道琼斯", currency: "USD", timezone: "America/New_York" },
-  { symbol: "NASDAQ:IXIC", fallbackSymbol: "usIXIC", region: "美国", name: "纳斯达克综合", currency: "USD", timezone: "America/New_York" },
-  { symbol: "TVC:DXY", region: "外汇", name: "美元指数", currency: "USD", timezone: "America/New_York" },
-  { symbol: "OANDA:XAUUSD", region: "贵金属", name: "现货黄金", currency: "USD", timezone: "America/New_York" },
   { symbol: "BMFBOVESPA:IBOV", region: "巴西", name: "Bovespa", currency: "BRL", timezone: "America/Sao_Paulo" },
 ]
 

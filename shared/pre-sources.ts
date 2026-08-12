@@ -22,7 +22,7 @@ export const originSources = {
     column: "finance",
     color: "cyan",
     interval: Time.Realtime,
-    desc: "全球主要股票指数公开行情，按交易所权限标注实时或延迟状态",
+    desc: "优先按美元指数、黄金、美国、中国、日本、韩国展示，行情标注实时或延迟状态",
     home: "https://www.tradingview.com/markets/world-stocks/world-stock-markets/",
   },
   pi: {
