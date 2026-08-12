@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parsePiMediaFeed, parsePiOfficialBlogPage, parsePiOfficialFeed, parsePiReaderFeed, restorePiProperNames } from "../server/sources/pi"
+import { parsePiMediaFeed, parsePiMediaReaderFeed, parsePiOfficialBlogPage, parsePiOfficialFeed, parsePiReaderFeed, restorePiProperNames } from "../server/sources/pi"
 
 describe("pi Network news", () => {
   it("parses, sorts, and deduplicates official feed items", () => {
@@ -133,6 +133,34 @@ Thu, 06 Aug 2026 16:00:00 +0000
       "白名单媒体 · crypto.news",
     ])
     expect(items.every(item => item.url.startsWith("https://news.google.com/rss/articles/"))).toBe(true)
+  })
+
+  it("parses the trusted-media reader fallback", () => {
+    const items = parsePiMediaReaderFeed(`
+Title: "Pi Network" - Google News
+
+Markdown Content:
+### [Pi Network price gains 5% as CPI cools, upgrade passes - Crypto News](https://news.google.com/rss/articles/trusted-reader?oc=5)
+
+[Pi Network price gains 5% as CPI cools, upgrade passes](https://news.google.com/rss/articles/trusted-reader?oc=5)Crypto News
+
+Wed, 12 Aug 2026 13:30:00 GMT
+
+### [Pi Network Price Prediction 2030: Will PI Reach $100? - CoinMarketCap](https://news.google.com/rss/articles/speculative-reader?oc=5)
+
+Wed, 12 Aug 2026 14:30:00 GMT
+
+### [Pi Network announces a partnership - Unknown Publisher](https://news.google.com/rss/articles/untrusted-reader?oc=5)
+
+Wed, 12 Aug 2026 15:30:00 GMT
+    `)
+
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({
+      title: "Pi Network price gains 5% as CPI cools, upgrade passes",
+      pubDate: new Date("Wed, 12 Aug 2026 13:30:00 GMT").getTime(),
+      extra: { info: "白名单媒体 · crypto.news" },
+    })
   })
 
   it("restores Pi product names after Chinese translation", () => {

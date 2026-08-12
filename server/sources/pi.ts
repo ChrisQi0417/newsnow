@@ -21,6 +21,7 @@ const officialFeedUrl = "https://minepi.com/blog/feed/"
 const officialBlogUrl = "https://minepi.com/blog/"
 const readerFeedUrl = "https://r.jina.ai/http://minepi.com/blog/feed/"
 const mediaFeedUrl = "https://news.google.com/rss/search?q=%22Pi%20Network%22%20when%3A7d&hl=en-US&gl=US&ceid=US%3Aen"
+const mediaReaderFeedUrl = "https://r.jina.ai/http://news.google.com/rss/search?q=%22Pi%20Network%22%20when%3A7d%26hl=en-US%26gl=US%26ceid=US%3Aen"
 const trustedMediaSources: PiMediaSource[] = [
   { displayName: "Reuters", names: ["Reuters"], domains: ["reuters.com"] },
   { displayName: "Bloomberg", names: ["Bloomberg"], domains: ["bloomberg.com"] },
@@ -124,6 +125,22 @@ function normalizeMediaTitle(value: string, sourceName: string) {
   return normalizeText(value).replace(new RegExp(`\\s+-\\s+${sourceName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`, "i"), "")
 }
 
+function splitTrustedMediaHeadline(value: string) {
+  const headline = normalizeText(value)
+  const normalized = headline.toLocaleLowerCase()
+  for (const source of trustedMediaSources) {
+    for (const name of source.names) {
+      const suffix = ` - ${name}`
+      if (normalized.endsWith(suffix.toLocaleLowerCase())) {
+        return {
+          sourceName: source.displayName,
+          title: headline.slice(0, -suffix.length),
+        }
+      }
+    }
+  }
+}
+
 function mediaItem(title: string, url: string, sourceName: string, pubDate?: number): NewsItem {
   return {
     id: url,
@@ -193,6 +210,35 @@ export function parsePiMediaFeed(raw: string, limit = 15) {
     if (!title || speculativeTitle.test(title) || !/\bPi Network\b|\bPI\b/i.test(title)) return []
     return [mediaItem(title, url, source, toTimestamp(item.pubDate))]
   }), limit)
+}
+
+export function parsePiMediaReaderFeed(markdown: string, limit = 15) {
+  const lines = markdown.split(/\r?\n/)
+  const items: NewsItem[] = []
+
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index].trim()
+    if (!line.startsWith("### [") || !line.endsWith(")")) continue
+    const linkStart = line.lastIndexOf("](")
+    if (linkStart < 5) continue
+
+    const headline = splitTrustedMediaHeadline(line.slice(5, linkStart))
+    const url = normalizeGoogleNewsUrl(line.slice(linkStart + 2, -1))
+    if (!headline || !url || speculativeTitle.test(headline.title) || !/\bPi Network\b|\bPI\b/i.test(headline.title)) continue
+
+    let pubDate: number | undefined
+    for (let dateIndex = index + 1; dateIndex < lines.length; dateIndex++) {
+      const dateLine = lines[dateIndex].trim()
+      if (dateLine.startsWith("### [")) break
+      if (/^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s.+\sGMT$/.test(dateLine)) {
+        pubDate = toTimestamp(dateLine)
+        break
+      }
+    }
+    items.push(mediaItem(headline.title, url, headline.sourceName, pubDate))
+  }
+
+  return curatePiNews(items, limit)
 }
 
 export function parsePiOfficialBlogPage(html: string) {
@@ -279,10 +325,26 @@ async function fetchMediaFeed() {
   const raw = await myFetch<string>(mediaFeedUrl, {
     responseType: "text",
     headers: browserHeaders,
-    retry: 1,
-    timeout: 8000,
+    retry: 0,
+    timeout: 4500,
   })
   return parsePiMediaFeed(raw)
+}
+
+async function fetchMediaReaderFeed() {
+  const markdown = await myFetch<string>(mediaReaderFeedUrl, {
+    responseType: "text",
+    retry: 1,
+    timeout: 10000,
+  })
+  return parsePiMediaReaderFeed(markdown)
+}
+
+async function fetchMediaItems() {
+  const results = await Promise.allSettled([fetchMediaFeed(), fetchMediaReaderFeed()])
+  const items = curatePiNews(results.flatMap(result => result.status === "fulfilled" ? result.value : []), 15)
+  if (!items.length) throw new Error("Cannot fetch trusted Pi Network media")
+  return items
 }
 
 async function fetchOfficialItems() {
@@ -313,7 +375,7 @@ async function fetchOfficialItems() {
 }
 
 export default defineSource(async () => {
-  const [officialResult, mediaResult] = await Promise.allSettled([fetchOfficialItems(), fetchMediaFeed()])
+  const [officialResult, mediaResult] = await Promise.allSettled([fetchOfficialItems(), fetchMediaItems()])
   const officialItems = officialResult.status === "fulfilled" ? officialResult.value : []
   const mediaItems = mediaResult.status === "fulfilled" ? mediaResult.value : []
   if (mediaResult.status === "rejected") logger.warn("failed to fetch trusted Pi Network media feed", mediaResult.reason)
