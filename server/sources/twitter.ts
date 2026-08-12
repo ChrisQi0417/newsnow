@@ -188,22 +188,32 @@ export function readXMyMemoryTranslation(data: unknown) {
   return typeof translatedText === "string" ? normalizeText(translatedText) : ""
 }
 
+export function readXReaderTranslation(raw: string) {
+  const markdown = raw.split("Markdown Content:").at(1)?.trim()
+  if (!markdown) return ""
+  try {
+    return readXFallbackTranslation(JSON.parse(markdown))
+  } catch {
+    return ""
+  }
+}
+
 async function translateXTextFallback(text: string) {
   try {
-    const googleUrl = new URL("https://clients5.google.com/translate_a/t")
-    googleUrl.searchParams.set("client", "dict-chrome-ex")
-    googleUrl.searchParams.set("sl", "auto")
-    googleUrl.searchParams.set("tl", "zh-CN")
-    googleUrl.searchParams.set("q", text)
-    const googleData = await myFetch<unknown>(googleUrl, {
-      responseType: "json",
+    const targetUrl = new URL("https://clients5.google.com/translate_a/t")
+    targetUrl.searchParams.set("client", "dict-chrome-ex")
+    targetUrl.searchParams.set("sl", "auto")
+    targetUrl.searchParams.set("tl", "zh-CN")
+    targetUrl.searchParams.set("q", text)
+    const readerData = await myFetch<string>(`https://r.jina.ai/${targetUrl.href}`, {
+      responseType: "text",
       retry: 1,
-      timeout: 6000,
+      timeout: 10000,
     })
-    const googleTranslation = readXFallbackTranslation(googleData)
-    if (chineseText.test(googleTranslation)) return googleTranslation
+    const readerTranslation = readXReaderTranslation(readerData)
+    if (chineseText.test(readerTranslation)) return readerTranslation
   } catch (error) {
-    logger.warn("failed to translate X post with Google fallback", error)
+    logger.warn("failed to translate X post through reader", error)
   }
 
   const myMemoryUrl = new URL("https://api.mymemory.translated.net/get")
@@ -223,25 +233,29 @@ async function translateFixedXPosts(items: NewsItem[]) {
     translated.push(...await translateNewsItemsToChinese(items.slice(index, index + 2)))
   }
 
-  for (let index = 0; index < translated.length; index++) {
-    const item = translated[index]
-    const title = normalizeText(String(item.title))
-    if (!latinText.test(title) || chineseText.test(title)) continue
+  const untranslatedIndexes = translated
+    .map((item, index) => ({ index, title: normalizeText(String(item.title)) }))
+    .filter(({ title }) => latinText.test(title) && !chineseText.test(title))
+    .map(({ index }) => index)
 
-    try {
-      const fallbackTitle = await translateXTextFallback(normalizeText(String(items[index].title)))
-      if (!fallbackTitle || !chineseText.test(fallbackTitle)) continue
-      translated[index] = {
-        ...item,
-        title: fallbackTitle,
-        extra: {
-          ...item.extra,
-          hover: `原文：${items[index].title}\n${item.extra?.hover ?? ""}`.trim(),
-        },
+  for (let offset = 0; offset < untranslatedIndexes.length; offset += 3) {
+    await Promise.all(untranslatedIndexes.slice(offset, offset + 3).map(async (index) => {
+      const item = translated[index]
+      try {
+        const fallbackTitle = await translateXTextFallback(normalizeText(String(items[index].title)))
+        if (!fallbackTitle || !chineseText.test(fallbackTitle)) return
+        translated[index] = {
+          ...item,
+          title: fallbackTitle,
+          extra: {
+            ...item.extra,
+            hover: `原文：${items[index].title}\n${item.extra?.hover ?? ""}`.trim(),
+          },
+        }
+      } catch (error) {
+        logger.warn("failed to translate X post with fallback", error)
       }
-    } catch (error) {
-      logger.warn("failed to translate X post with fallback", error)
-    }
+    }))
   }
 
   return translated

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { fixedXAccounts, parseXEmbeddedProfile, parseXProfilePage, readXFallbackTranslation, readXMyMemoryTranslation, restoreXProperNames } from "../server/sources/twitter"
+import { fixedXAccounts, parseXEmbeddedProfile, parseXProfilePage, readXFallbackTranslation, readXMyMemoryTranslation, readXReaderTranslation, restoreXProperNames } from "../server/sources/twitter"
 
 const tibo = fixedXAccounts[0]
 const openAI = fixedXAccounts[1]
@@ -84,5 +84,17 @@ describe("fixed X accounts", () => {
     expect(readXMyMemoryTranslation({ responseData: { translatedText: "为什么转而使用 Codex？" } }))
       .toBe("为什么转而使用 Codex？")
     expect(readXMyMemoryTranslation({ responseData: null })).toBe("")
+  })
+
+  it("reads a translated response forwarded by the reader", () => {
+    expect(readXReaderTranslation(`
+Title:
+
+URL Source: https://clients5.google.com/translate_a/t
+
+Markdown Content:
+["为什么转而使用 Codex？"]
+    `)).toBe("为什么转而使用 Codex？")
+    expect(readXReaderTranslation("invalid response")).toBe("")
   })
 })
