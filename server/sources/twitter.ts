@@ -182,18 +182,39 @@ export function readXFallbackTranslation(data: unknown) {
   return normalizeText(data.filter(value => typeof value === "string").join(""))
 }
 
+export function readXMyMemoryTranslation(data: unknown) {
+  if (!data || typeof data !== "object") return ""
+  const translatedText = (data as { responseData?: { translatedText?: unknown } }).responseData?.translatedText
+  return typeof translatedText === "string" ? normalizeText(translatedText) : ""
+}
+
 async function translateXTextFallback(text: string) {
-  const url = new URL("https://clients5.google.com/translate_a/t")
-  url.searchParams.set("client", "dict-chrome-ex")
-  url.searchParams.set("sl", "auto")
-  url.searchParams.set("tl", "zh-CN")
-  url.searchParams.set("q", text)
-  const data = await myFetch<unknown>(url, {
+  try {
+    const googleUrl = new URL("https://clients5.google.com/translate_a/t")
+    googleUrl.searchParams.set("client", "dict-chrome-ex")
+    googleUrl.searchParams.set("sl", "auto")
+    googleUrl.searchParams.set("tl", "zh-CN")
+    googleUrl.searchParams.set("q", text)
+    const googleData = await myFetch<unknown>(googleUrl, {
+      responseType: "json",
+      retry: 1,
+      timeout: 6000,
+    })
+    const googleTranslation = readXFallbackTranslation(googleData)
+    if (chineseText.test(googleTranslation)) return googleTranslation
+  } catch (error) {
+    logger.warn("failed to translate X post with Google fallback", error)
+  }
+
+  const myMemoryUrl = new URL("https://api.mymemory.translated.net/get")
+  myMemoryUrl.searchParams.set("q", text)
+  myMemoryUrl.searchParams.set("langpair", "en|zh-CN")
+  const myMemoryData = await myFetch<unknown>(myMemoryUrl, {
     responseType: "json",
     retry: 1,
     timeout: 6000,
   })
-  return readXFallbackTranslation(data)
+  return readXMyMemoryTranslation(myMemoryData)
 }
 
 async function translateFixedXPosts(items: NewsItem[]) {
