@@ -77,6 +77,7 @@ describe("fixed X accounts", () => {
 
   it("reads the compact Google fallback response", () => {
     expect(readXFallbackTranslation(["为什么转而使用 Codex？"])).toBe("为什么转而使用 Codex？")
+    expect(readXFallbackTranslation([["为什么转而使用 Codex？", "en"]])).toBe("为什么转而使用 Codex？")
     expect(readXFallbackTranslation({ translated: "invalid" })).toBe("")
   })
 

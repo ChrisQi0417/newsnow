@@ -179,6 +179,7 @@ export function restoreXProperNames(originalTitle: string, translatedTitle: stri
 
 export function readXFallbackTranslation(data: unknown) {
   if (!Array.isArray(data)) return ""
+  if (Array.isArray(data[0]) && typeof data[0][0] === "string") return normalizeText(data[0][0])
   return normalizeText(data.filter(value => typeof value === "string").join(""))
 }
 
