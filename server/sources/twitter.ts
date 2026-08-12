@@ -35,6 +35,13 @@ interface EmbeddedTimelineData {
   }
 }
 
+interface BingTranslatorAuth {
+  expiresAt: number
+  ig: string
+  key: string
+  token: string
+}
+
 export const fixedXAccounts: readonly XAccount[] = [
   {
     displayName: "Tibo",
@@ -55,6 +62,7 @@ const browserHeaders = {
 }
 const chineseText = /[\u3400-\u9FFF]/
 const latinText = /[a-z]/i
+let bingTranslatorAuth: BingTranslatorAuth | undefined
 
 function normalizeText(value: string) {
   const entities: Record<string, string> = {
@@ -199,6 +207,66 @@ export function readXReaderTranslation(raw: string) {
   }
 }
 
+export function parseBingTranslatorPage(html: string, now = Date.now()): BingTranslatorAuth | undefined {
+  const ig = html.match(/IG:"([A-F\d]+)"/)?.[1]
+  const helper = html.match(/params_AbusePreventionHelper\s*=\s*\[(\d+),"([\w-]+)",(\d+)\]/)
+  if (!ig || !helper) return
+  return {
+    expiresAt: now + Number(helper[3]),
+    ig,
+    key: helper[1],
+    token: helper[2],
+  }
+}
+
+export function readBingTranslation(data: unknown) {
+  if (!Array.isArray(data)) return ""
+  const translated = data[0]?.translations?.[0]?.text
+  return typeof translated === "string" ? normalizeText(translated) : ""
+}
+
+async function getBingTranslatorAuth() {
+  if (bingTranslatorAuth && bingTranslatorAuth.expiresAt > Date.now() + 60_000) return bingTranslatorAuth
+  const html = await myFetch<string>("https://www.bing.com/translator", {
+    responseType: "text",
+    headers: browserHeaders,
+    retry: 1,
+    timeout: 8000,
+  })
+  const auth = parseBingTranslatorPage(html)
+  if (!auth) throw new Error("Cannot parse Bing translator token")
+  bingTranslatorAuth = auth
+  return auth
+}
+
+async function translateXTextWithBing(text: string, auth: BingTranslatorAuth) {
+  const url = new URL("https://www.bing.com/ttranslatev3")
+  url.searchParams.set("isVertical", "1")
+  url.searchParams.set("IG", auth.ig)
+  url.searchParams.set("IID", "translator.5023.1")
+  const data = await myFetch<unknown>(url, {
+    method: "POST",
+    responseType: "json",
+    headers: {
+      ...browserHeaders,
+      Accept: "application/json",
+      Origin: "https://www.bing.com",
+      Referer: "https://www.bing.com/translator",
+    },
+    body: new URLSearchParams({
+      fromLang: "auto-detect",
+      key: auth.key,
+      text,
+      to: "zh-Hans",
+      token: auth.token,
+      tryFetchingGenderDebiasedTranslations: "true",
+    }),
+    retry: 1,
+    timeout: 8000,
+  })
+  return readBingTranslation(data)
+}
+
 async function translateXTextFallback(text: string) {
   try {
     const targetUrl = new URL("https://clients5.google.com/translate_a/t")
@@ -239,11 +307,20 @@ async function translateFixedXPosts(items: NewsItem[]) {
     .filter(({ title }) => latinText.test(title) && !chineseText.test(title))
     .map(({ index }) => index)
 
+  let bingAuth: BingTranslatorAuth | undefined
+  try {
+    bingAuth = await getBingTranslatorAuth()
+  } catch (error) {
+    logger.warn("failed to initialize Bing translator", error)
+  }
+
   for (let offset = 0; offset < untranslatedIndexes.length; offset += 3) {
     await Promise.all(untranslatedIndexes.slice(offset, offset + 3).map(async (index) => {
       const item = translated[index]
       try {
-        const fallbackTitle = await translateXTextFallback(normalizeText(String(items[index].title)))
+        const originalTitle = normalizeText(String(items[index].title))
+        let fallbackTitle = bingAuth ? await translateXTextWithBing(originalTitle, bingAuth) : ""
+        if (!chineseText.test(fallbackTitle)) fallbackTitle = await translateXTextFallback(originalTitle)
         if (!fallbackTitle || !chineseText.test(fallbackTitle)) return
         translated[index] = {
           ...item,

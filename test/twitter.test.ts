@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { fixedXAccounts, parseXEmbeddedProfile, parseXProfilePage, readXFallbackTranslation, readXMyMemoryTranslation, readXReaderTranslation, restoreXProperNames } from "../server/sources/twitter"
+import { fixedXAccounts, parseBingTranslatorPage, parseXEmbeddedProfile, parseXProfilePage, readBingTranslation, readXFallbackTranslation, readXMyMemoryTranslation, readXReaderTranslation, restoreXProperNames } from "../server/sources/twitter"
 
 const tibo = fixedXAccounts[0]
 const openAI = fixedXAccounts[1]
@@ -97,5 +97,19 @@ Markdown Content:
 ["为什么转而使用 Codex？"]
     `)).toBe("为什么转而使用 Codex？")
     expect(readXReaderTranslation("invalid response")).toBe("")
+  })
+
+  it("parses Bing translator authentication and translation responses", () => {
+    expect(parseBingTranslatorPage(`
+      <script>var page = {IG:"FC1307A59A6A480EA164D60E367639F4"};</script>
+      <script>params_AbusePreventionHelper = [1786525957721,"WPrTUGGwPyE0Hp1329ypsMSYTwxeb9hI",3600000];</script>
+    `, 1000)).toEqual({
+      expiresAt: 3601000,
+      ig: "FC1307A59A6A480EA164D60E367639F4",
+      key: "1786525957721",
+      token: "WPrTUGGwPyE0Hp1329ypsMSYTwxeb9hI",
+    })
+    expect(readBingTranslation([{ translations: [{ text: "你为什么转向 Codex？" }] }]))
+      .toBe("你为什么转向 Codex？")
   })
 })
