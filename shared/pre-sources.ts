@@ -37,12 +37,12 @@ export const originSources = {
   },
   pi: {
     name: "Pi Network",
-    title: "官方动态",
+    title: "官方与筛选媒体",
     type: "realtime",
     column: "finance",
     color: "violet",
     interval: Time.Fast,
-    desc: "Pi Network 官方博客公告，英文标题翻译为中文；不收录价格预测和推广站点",
+    desc: "官方公告优先，补充 CoinDesk、Cointelegraph、Decrypt、The Block、CryptoRank 等白名单媒体；过滤价格预测、喊单和传言",
     home: "https://minepi.com/blog/",
   },
   apple: {
