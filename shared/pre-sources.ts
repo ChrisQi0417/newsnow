@@ -25,6 +25,16 @@ export const originSources = {
     desc: "优先按美元指数、黄金、美国、中国、日本、韩国展示，行情标注实时或延迟状态",
     home: "https://www.tradingview.com/markets/world-stocks/world-stock-markets/",
   },
+  weather: {
+    name: "天气与台风",
+    title: "当地・北京・台风",
+    type: "realtime",
+    column: "world",
+    color: "sky",
+    interval: Time.Fast,
+    desc: "按访问 IP 的近似位置显示当地及北京天气，并汇总 JMA 与 NHC 实时台风和飓风公报",
+    home: "https://open-meteo.com/",
+  },
   pi: {
     name: "Pi Network",
     title: "官方动态",

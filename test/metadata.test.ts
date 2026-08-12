@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest"
 import { mergeNewSourcesByDefaultOrder, metadata, placeSourceAfter } from "../shared/metadata"
 
 describe("stored column migration", () => {
-  it("includes Pi Network and Apple News in realtime and hottest defaults", () => {
-    expect(metadata.realtime.sources.slice(0, 4)).toEqual(["markets", "pi", "apple", "ai"])
+  it("includes weather, Pi Network and Apple News in realtime defaults", () => {
+    expect(metadata.realtime.sources.slice(0, 5)).toEqual(["markets", "weather", "pi", "apple", "ai"])
     expect(metadata.hottest.sources).toContain("pi")
     expect(metadata.hottest.sources).toContain("apple")
   })

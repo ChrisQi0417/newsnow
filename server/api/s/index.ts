@@ -16,7 +16,9 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
       if (isValid(id)) throw new Error("Invalid source id")
     }
 
-    const cacheTable = await getCacheTable()
+    const requestScoped = id === "weather"
+    if (requestScoped) setHeader(event, "Cache-Control", "private, no-store")
+    const cacheTable = requestScoped ? undefined : await getCacheTable()
     // Date.now() in Cloudflare Worker will not update throughout the entire runtime.
     const now = Date.now()
     let cache: CacheInfo | undefined
@@ -56,7 +58,7 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
     }
 
     try {
-      const newData = (await getters[id]()).slice(0, 30)
+      const newData = (await getters[id](event)).slice(0, 30)
       if (cacheTable && newData.length) {
         if (event.context.waitUntil) event.context.waitUntil(cacheTable.set(id, newData))
         else await cacheTable.set(id, newData)

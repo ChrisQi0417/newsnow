@@ -1,4 +1,5 @@
 import type { NewsItem, SourceID } from "@shared/types"
+import type { H3Event } from "h3"
 
 export interface RSSInfo {
   title: string
@@ -67,4 +68,4 @@ export interface SourceOption {
   limit?: number
 }
 
-export type SourceGetter = () => Promise<NewsItem[]>
+export type SourceGetter = (event?: H3Event) => Promise<NewsItem[]>
