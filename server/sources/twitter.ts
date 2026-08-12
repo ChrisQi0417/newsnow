@@ -53,6 +53,8 @@ const browserHeaders = {
   "Accept-Language": "en-US,en;q=0.9",
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138.0.0.0 Safari/537.36",
 }
+const chineseText = /[\u3400-\u9FFF]/
+const latinText = /[a-z]/i
 
 function normalizeText(value: string) {
   const entities: Record<string, string> = {
@@ -175,11 +177,52 @@ export function restoreXProperNames(originalTitle: string, translatedTitle: stri
   return normalizeText(restored)
 }
 
+export function readXFallbackTranslation(data: unknown) {
+  if (!Array.isArray(data)) return ""
+  return normalizeText(data.filter(value => typeof value === "string").join(""))
+}
+
+async function translateXTextFallback(text: string) {
+  const url = new URL("https://clients5.google.com/translate_a/t")
+  url.searchParams.set("client", "dict-chrome-ex")
+  url.searchParams.set("sl", "auto")
+  url.searchParams.set("tl", "zh-CN")
+  url.searchParams.set("q", text)
+  const data = await myFetch<unknown>(url, {
+    responseType: "json",
+    retry: 1,
+    timeout: 6000,
+  })
+  return readXFallbackTranslation(data)
+}
+
 async function translateFixedXPosts(items: NewsItem[]) {
   const translated: NewsItem[] = []
   for (let index = 0; index < items.length; index += 2) {
     translated.push(...await translateNewsItemsToChinese(items.slice(index, index + 2)))
   }
+
+  for (let index = 0; index < translated.length; index++) {
+    const item = translated[index]
+    const title = normalizeText(String(item.title))
+    if (!latinText.test(title) || chineseText.test(title)) continue
+
+    try {
+      const fallbackTitle = await translateXTextFallback(normalizeText(String(items[index].title)))
+      if (!fallbackTitle || !chineseText.test(fallbackTitle)) continue
+      translated[index] = {
+        ...item,
+        title: fallbackTitle,
+        extra: {
+          ...item.extra,
+          hover: `原文：${items[index].title}\n${item.extra?.hover ?? ""}`.trim(),
+        },
+      }
+    } catch (error) {
+      logger.warn("failed to translate X post with fallback", error)
+    }
+  }
+
   return translated
 }
 
