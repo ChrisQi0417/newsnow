@@ -1,5 +1,5 @@
 import type { SourceID, SourceResponse } from "@shared/types"
-import { getters } from "#/getters"
+import { getGetter, hasGetter } from "#/getters"
 import { getCacheTable } from "#/database/cache"
 import type { CacheInfo } from "#/types"
 
@@ -8,7 +8,7 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
     const query = getQuery(event)
     const latest = query.latest !== undefined && query.latest !== "false"
     let id = query.id as SourceID
-    const isValid = (id: SourceID) => !id || !sources[id] || !getters[id]
+    const isValid = (id: SourceID) => !id || !sources[id] || !hasGetter(id)
 
     if (isValid(id)) {
       const redirectID = sources?.[id]?.redirect
@@ -58,7 +58,9 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
     }
 
     try {
-      const newData = (await getters[id](event)).slice(0, 30)
+      const getter = await getGetter(id)
+      if (!getter) throw new Error("Invalid source id")
+      const newData = (await getter(event)).slice(0, 30)
       if (cacheTable && newData.length) {
         if (event.context.waitUntil) event.context.waitUntil(cacheTable.set(id, newData))
         else await cacheTable.set(id, newData)

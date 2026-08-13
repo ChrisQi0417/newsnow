@@ -1,15 +1,57 @@
 import type { SourceID } from "@shared/types"
-import * as x from "glob:./sources/{*.ts,**/index.ts}"
 import type { SourceGetter } from "./types"
 
-export const getters = (function () {
-  const getters = {} as Record<SourceID, SourceGetter>
-  typeSafeObjectEntries(x).forEach(([id, x]) => {
-    if (x.default instanceof Function) {
-      Object.assign(getters, { [id]: x.default })
-    } else {
-      Object.assign(getters, x.default)
-    }
-  })
-  return getters
-})()
+interface SourceModule {
+  default: SourceGetter | Partial<Record<SourceID, SourceGetter>>
+}
+
+const sourceModules = {
+  afp: () => import("./sources/afp"),
+  ai: () => import("./sources/ai"),
+  apnews: () => import("./sources/apnews"),
+  apple: () => import("./sources/apple"),
+  bbc: () => import("./sources/bbc"),
+  bbcnews: () => import("./sources/bbcnews"),
+  bloomberg: () => import("./sources/bloomberg"),
+  chinanews: () => import("./sources/chinanews"),
+  dw: () => import("./sources/dw"),
+  economist: () => import("./sources/economist"),
+  fed: () => import("./sources/fed"),
+  france24: () => import("./sources/france24"),
+  ft: () => import("./sources/ft"),
+  github: () => import("./sources/github"),
+  govcn: () => import("./sources/govcn"),
+  markets: () => import("./sources/markets"),
+  nhk: () => import("./sources/nhk"),
+  nikkei: () => import("./sources/nikkei"),
+  people: () => import("./sources/people"),
+  pi: () => import("./sources/pi"),
+  reuters: () => import("./sources/reuters"),
+  rfi: () => import("./sources/rfi"),
+  scmp: () => import("./sources/scmp"),
+  truthsocial: () => import("./sources/truthsocial"),
+  twitter: () => import("./sources/twitter"),
+  unnews: () => import("./sources/unnews"),
+  weather: () => import("./sources/weather"),
+  wsj: () => import("./sources/wsj"),
+  xinhua: () => import("./sources/xinhua"),
+} satisfies Record<string, () => Promise<SourceModule>>
+
+type SourceModuleName = keyof typeof sourceModules
+
+export function sourceModuleName(id: SourceID): SourceModuleName | undefined {
+  const name = id.split("-")[0] as SourceModuleName
+  return name in sourceModules ? name : undefined
+}
+
+export function hasGetter(id: SourceID) {
+  return Boolean(sourceModuleName(id))
+}
+
+export async function getGetter(id: SourceID): Promise<SourceGetter | undefined> {
+  const name = sourceModuleName(id)
+  if (!name) return
+
+  const source = (await sourceModules[name]()).default
+  return typeof source === "function" ? source : source[id]
+}
