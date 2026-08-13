@@ -17,11 +17,29 @@ interface PiMediaSource {
   names: string[]
 }
 
+interface PiMediaJsonResponse {
+  items?: Array<{
+    link?: string
+    pubDate?: string
+    title?: string
+  }>
+  status?: string
+}
+
 const officialFeedUrl = "https://minepi.com/blog/feed/"
 const officialBlogUrl = "https://minepi.com/blog/"
 const readerFeedUrl = "https://r.jina.ai/http://minepi.com/blog/feed/"
 const mediaFeedUrl = "https://news.google.com/rss/search?q=%22Pi%20Network%22%20when%3A7d&hl=en-US&gl=US&ceid=US%3Aen"
 const mediaReaderFeedUrl = "https://r.jina.ai/http://news.google.com/rss/search?q=%22Pi%20Network%22%20when%3A7d%26hl=en-US%26gl=US%26ceid=US%3Aen"
+const mediaJsonFeedUrls = ["CryptoPotato", "CryptoRank"].map((source) => {
+  const query = encodeURIComponent(`"Pi Network" source:${source} when:7d`)
+  const feed = encodeURIComponent(`https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`)
+  return `https://api.rss2json.com/v1/api.json?rss_url=${feed}`
+})
+const directMediaFeeds = [
+  { sourceName: "crypto.news", url: "https://crypto.news/tag/pi-network/feed/" },
+  { sourceName: "CryptoPotato", url: "https://cryptopotato.com/feed/" },
+]
 const trustedMediaSources: PiMediaSource[] = [
   { displayName: "Reuters", names: ["Reuters"], domains: ["reuters.com"] },
   { displayName: "Bloomberg", names: ["Bloomberg"], domains: ["bloomberg.com"] },
@@ -34,7 +52,7 @@ const trustedMediaSources: PiMediaSource[] = [
   { displayName: "CryptoSlate", names: ["CryptoSlate"], domains: ["cryptoslate.com"] },
   { displayName: "FXStreet", names: ["FXStreet"], domains: ["fxstreet.com"] },
   { displayName: "CoinMarketCap", names: ["CoinMarketCap"], domains: ["coinmarketcap.com"] },
-  { displayName: "CryptoPotato", names: ["CryptoPotato"], domains: ["cryptopotato.com"] },
+  { displayName: "CryptoPotato", names: ["CryptoPotato", "cryptopotato.com"], domains: ["cryptopotato.com"] },
   { displayName: "CryptoRank", names: ["CryptoRank"], domains: ["cryptorank.io"] },
   { displayName: "Yahoo Finance", names: ["Yahoo Finance"], domains: ["finance.yahoo.com"] },
 ]
@@ -121,8 +139,25 @@ function normalizeGoogleNewsUrl(value?: string) {
   }
 }
 
+function normalizeDirectMediaUrl(value: string | undefined, sourceName: string) {
+  const source = trustedMediaSources.find(item => item.displayName === sourceName)
+  if (!value || !source) return
+  try {
+    const url = new URL(value)
+    const hostname = url.hostname.toLocaleLowerCase().replace(/^www\./, "")
+    if (url.protocol !== "https:" || !source.domains.some(domain => hostname === domain || hostname.endsWith(`.${domain}`))) return
+    url.hash = ""
+    return url.href
+  } catch {
+  }
+}
+
 function normalizeMediaTitle(value: string, sourceName: string) {
-  return normalizeText(value).replace(new RegExp(`\\s+-\\s+${sourceName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`, "i"), "")
+  return decodeFeedTitle(value).replace(new RegExp(`\\s+-\\s+${sourceName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`, "i"), "")
+}
+
+function decodeFeedTitle(value: string) {
+  return normalizeText(load(`<span>${value}</span>`).text())
 }
 
 function splitTrustedMediaHeadline(value: string) {
@@ -142,6 +177,7 @@ function splitTrustedMediaHeadline(value: string) {
 }
 
 function mediaItem(title: string, url: string, sourceName: string, pubDate?: number): NewsItem {
+  const channel = new URL(url).hostname === "news.google.com" ? "经 Google News 聚合" : "媒体原生 RSS"
   return {
     id: url,
     title,
@@ -149,7 +185,7 @@ function mediaItem(title: string, url: string, sourceName: string, pubDate?: num
     pubDate,
     extra: {
       info: `白名单媒体 · ${sourceName}`,
-      hover: `来源：${sourceName}（经 Google News 聚合）\n非 Pi Network 官方公告，请结合官网交叉验证`,
+      hover: `来源：${sourceName}（${channel}）\n非 Pi Network 官方公告，请结合官网交叉验证`,
     },
   }
 }
@@ -239,6 +275,37 @@ export function parsePiMediaReaderFeed(markdown: string, limit = 15) {
   }
 
   return curatePiNews(items, limit)
+}
+
+export function parsePiMediaJson(response: PiMediaJsonResponse, limit = 15) {
+  if (response.status !== "ok" || !Array.isArray(response.items)) return []
+
+  return curatePiNews(response.items.flatMap((item) => {
+    const headline = splitTrustedMediaHeadline(decodeFeedTitle(item.title || ""))
+    const url = normalizeGoogleNewsUrl(item.link)
+    if (!headline || !url || speculativeTitle.test(headline.title) || !/\bPi Network\b|\bPI\b/i.test(headline.title)) return []
+    const date = item.pubDate && /^\d{4}-\d{2}-\d{2}\s/.test(item.pubDate) ? `${item.pubDate} UTC` : item.pubDate
+    return [mediaItem(headline.title, url, headline.sourceName, toTimestamp(date))]
+  }), limit)
+}
+
+export function parsePiDirectMediaFeed(raw: string, sourceName: string, limit = 15) {
+  const parser = new XMLParser({
+    attributeNamePrefix: "",
+    textNodeName: "$text",
+    ignoreAttributes: false,
+  })
+  const channel = parser.parse(raw)?.rss?.channel
+  const feedItems = channel?.item
+    ? (Array.isArray(channel.item) ? channel.item : [channel.item]) as PiFeedItem[]
+    : []
+
+  return curatePiNews(feedItems.flatMap((item) => {
+    const title = decodeFeedTitle(readText(item.title))
+    const url = normalizeDirectMediaUrl(item.link || readText(item.guid), sourceName)
+    if (!title || !url || speculativeTitle.test(title) || !/\bPi Network\b|\bPI\b/i.test(title)) return []
+    return [mediaItem(title, url, sourceName, toTimestamp(item.pubDate))]
+  }), limit)
 }
 
 export function parsePiOfficialBlogPage(html: string) {
@@ -340,8 +407,38 @@ async function fetchMediaReaderFeed() {
   return parsePiMediaReaderFeed(markdown)
 }
 
+async function fetchMediaJsonFeeds() {
+  const items: NewsItem[] = []
+  for (const [index, url] of mediaJsonFeedUrls.entries()) {
+    if (index) await new Promise(resolve => setTimeout(resolve, 750))
+    try {
+      const response = await myFetch<PiMediaJsonResponse>(url, {
+        retry: 0,
+        timeout: 7000,
+      })
+      items.push(...parsePiMediaJson(response))
+    } catch (error) {
+      logger.warn("failed to fetch Pi Network structured media feed", error)
+    }
+  }
+  return curatePiNews(items, 15)
+}
+
+async function fetchDirectMediaFeeds() {
+  const results = await Promise.allSettled(directMediaFeeds.map(async (feed) => {
+    const raw = await myFetch<string>(feed.url, {
+      responseType: "text",
+      headers: browserHeaders,
+      retry: 1,
+      timeout: 8000,
+    })
+    return parsePiDirectMediaFeed(raw, feed.sourceName)
+  }))
+  return curatePiNews(results.flatMap(result => result.status === "fulfilled" ? result.value : []), 15)
+}
+
 async function fetchMediaItems() {
-  const results = await Promise.allSettled([fetchMediaFeed(), fetchMediaReaderFeed()])
+  const results = await Promise.allSettled([fetchDirectMediaFeeds(), fetchMediaFeed(), fetchMediaReaderFeed(), fetchMediaJsonFeeds()])
   const items = curatePiNews(results.flatMap(result => result.status === "fulfilled" ? result.value : []), 15)
   if (!items.length) throw new Error("Cannot fetch trusted Pi Network media")
   return items

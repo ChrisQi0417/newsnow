@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parsePiMediaFeed, parsePiMediaReaderFeed, parsePiOfficialBlogPage, parsePiOfficialFeed, parsePiReaderFeed, restorePiProperNames } from "../server/sources/pi"
+import { parsePiDirectMediaFeed, parsePiMediaFeed, parsePiMediaJson, parsePiMediaReaderFeed, parsePiOfficialBlogPage, parsePiOfficialFeed, parsePiReaderFeed, restorePiProperNames } from "../server/sources/pi"
 
 describe("pi Network news", () => {
   it("parses, sorts, and deduplicates official feed items", () => {
@@ -159,6 +159,65 @@ Wed, 12 Aug 2026 15:30:00 GMT
     expect(items[0]).toMatchObject({
       title: "Pi Network price gains 5% as CPI cools, upgrade passes",
       pubDate: new Date("Wed, 12 Aug 2026 13:30:00 GMT").getTime(),
+      extra: { info: "白名单媒体 · crypto.news" },
+    })
+  })
+
+  it("parses the structured media fallback", () => {
+    const items = parsePiMediaJson({
+      status: "ok",
+      items: [
+        {
+          title: "Pi Network Protocol 26 deadline: what node operators must know - Crypto News",
+          link: "https://news.google.com/rss/articles/json-trusted?oc=5",
+          pubDate: "2026-08-11 06:29:00",
+        },
+        {
+          title: "Pi Network Price Prediction 2030: Will PI Reach $100? - CryptoRank",
+          link: "https://news.google.com/rss/articles/json-speculative?oc=5",
+          pubDate: "2026-08-12 06:29:00",
+        },
+        {
+          title: "Pi Network confirms exchange listing - Unknown Publisher",
+          link: "https://news.google.com/rss/articles/json-untrusted?oc=5",
+          pubDate: "2026-08-12 07:29:00",
+        },
+      ],
+    })
+
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({
+      title: "Pi Network Protocol 26 deadline: what node operators must know",
+      pubDate: new Date("2026-08-11T06:29:00Z").getTime(),
+      extra: { info: "白名单媒体 · crypto.news" },
+    })
+  })
+
+  it("parses direct publisher feeds and validates article domains", () => {
+    const items = parsePiDirectMediaFeed(`
+      <rss><channel>
+        <item>
+          <title>Pi Network&amp;#8217;s Protocol 26 deadline is tomorrow</title>
+          <link>https://crypto.news/pi-network-protocol-26/</link>
+          <pubDate>Tue, 11 Aug 2026 06:29:28 +0000</pubDate>
+        </item>
+        <item>
+          <title>Pi Network Price Prediction: Will PI Reach $100?</title>
+          <link>https://crypto.news/pi-network-price-prediction/</link>
+          <pubDate>Wed, 12 Aug 2026 06:29:28 +0000</pubDate>
+        </item>
+        <item>
+          <title>Pi Network confirms a major milestone</title>
+          <link>https://example.com/pi-network/</link>
+          <pubDate>Wed, 12 Aug 2026 07:29:28 +0000</pubDate>
+        </item>
+      </channel></rss>
+    `, "crypto.news")
+
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({
+      title: "Pi Network’s Protocol 26 deadline is tomorrow",
+      url: "https://crypto.news/pi-network-protocol-26/",
       extra: { info: "白名单媒体 · crypto.news" },
     })
   })
