@@ -1,4 +1,3 @@
-import { load } from "cheerio"
 import { XMLParser } from "fast-xml-parser"
 import type { NewsItem } from "@shared/types"
 import { translateNewsItemsToChinese } from "../utils/translate"
@@ -53,6 +52,33 @@ function normalizeText(value: string) {
   return value.replace(/\s+/g, " ").trim()
 }
 
+const htmlEntities: Record<string, string> = {
+  amp: "&",
+  apos: "'",
+  gt: ">",
+  hellip: "...",
+  ldquo: "\u201C",
+  lsquo: "\u2018",
+  lt: "<",
+  mdash: "\u2014",
+  nbsp: " ",
+  ndash: "\u2013",
+  quot: "\"",
+  rdquo: "\u201D",
+  rsquo: "\u2019",
+}
+
+function decodeHtmlText(value: string) {
+  return normalizeText(value
+    .replace(/<br\b[^>]*>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (entity, code: string) => {
+      if (code.startsWith("#x")) return String.fromCodePoint(Number.parseInt(code.slice(2), 16))
+      if (code.startsWith("#")) return String.fromCodePoint(Number.parseInt(code.slice(1), 10))
+      return htmlEntities[code.toLowerCase()] ?? entity
+    }))
+}
+
 function readText(value: unknown) {
   if (typeof value === "string" || typeof value === "number") return normalizeText(String(value))
   if (value && typeof value === "object" && "$text" in value) {
@@ -101,6 +127,34 @@ function normalizeAppleNewsUrl(value?: string) {
   }
 }
 
+function appleNewsLinks(html: string) {
+  const lowerHtml = html.toLowerCase()
+  const hrefRegExp = /\bhref\s*=\s*(?:"([^"]+)"|'([^']+)')/i
+  const links: { source: string, url: string }[] = []
+  let cursor = 0
+
+  while (cursor < html.length) {
+    const start = lowerHtml.indexOf("<a", cursor)
+    if (start < 0) break
+    if (!/\s/.test(html[start + 2] ?? "")) {
+      cursor = start + 2
+      continue
+    }
+
+    const openEnd = lowerHtml.indexOf(">", start + 3)
+    const closeStart = openEnd >= 0 ? lowerHtml.indexOf("</a>", openEnd + 1) : -1
+    if (openEnd < 0 || closeStart < 0) break
+
+    const href = hrefRegExp.exec(html.slice(start + 2, openEnd))
+    const source = decodeHtmlText(html.slice(openEnd + 1, closeStart))
+    const url = normalizeAppleNewsUrl(href?.[1] || href?.[2])
+    if (source && url) links.push({ source, url })
+    cursor = closeStart + 4
+  }
+
+  return links
+}
+
 function podcastEpisodeItem(item: ApplePodcastFeedItem, showName: string): NewsItem | undefined {
   const title = readText(item.title)
   const url = normalizeAppleNewsUrl(item.link)
@@ -120,24 +174,20 @@ function podcastEpisodeItem(item: ApplePodcastFeedItem, showName: string): NewsI
 function editorialStoryItems(item: ApplePodcastFeedItem): NewsItem[] {
   const description = readText(item.description)
   if (!description) return []
-  const $ = load(description)
   const pubDate = toTimestamp(item.pubDate)
   const stories: NewsItem[] = []
+  const paragraphRegExp = /<p\b[^>]*>([\s\S]*?)<\/p>/gi
 
-  $("p").each((_, element) => {
-    const paragraph = $(element)
-    const links = paragraph.find("a").toArray().flatMap((anchor) => {
-      const source = normalizeText($(anchor).text())
-      const url = normalizeAppleNewsUrl($(anchor).attr("href"))
-      return source && url ? [{ source, url }] : []
-    })
-    if (links.length !== 1) return
+  for (const paragraphMatch of description.matchAll(paragraphRegExp)) {
+    const paragraph = paragraphMatch[1]
+    const links = appleNewsLinks(paragraph)
+    if (links.length !== 1) continue
 
     const { source, url } = links[0]
-    const paragraphText = normalizeText(paragraph.text())
+    const paragraphText = decodeHtmlText(paragraph)
     const sourceIndex = paragraphText.indexOf(source)
     const title = normalizeText(paragraphText.slice(0, sourceIndex).replace(/\bThe\s*$/i, "")).replace(/[.:,;\s]+$/, "")
-    if (sourceIndex < 20 || title.length < 20) return
+    if (sourceIndex < 20 || title.length < 20) continue
 
     stories.push({
       id: url,
@@ -149,12 +199,12 @@ function editorialStoryItems(item: ApplePodcastFeedItem): NewsItem[] {
         hover: `来源：Apple News 美区编辑精选\n原媒体：${source}`,
       },
     })
-  })
+  }
 
   return stories
 }
 
-export function curateAppleNewsItems(items: NewsItem[], limit = 50) {
+export function curateAppleNewsItems(items: NewsItem[], limit = 30) {
   const seen = new Set<string>()
   return items
     .filter(item => item.url && String(item.title).length >= 5)
@@ -167,7 +217,7 @@ export function curateAppleNewsItems(items: NewsItem[], limit = 50) {
     .slice(0, limit)
 }
 
-export function parseAppleNewsPodcastFeed(raw: string, feed: ApplePodcastFeed, limit = 50) {
+export function parseAppleNewsPodcastFeed(raw: string, feed: ApplePodcastFeed, limit = 30) {
   const parser = new XMLParser({
     attributeNamePrefix: "",
     textNodeName: "$text",
@@ -195,15 +245,16 @@ function jsonLdObjects(value: unknown): AppleNewsTodaySeries[] {
 }
 
 export function parseAppleNewsTodayPage(html: string, limit = 30) {
-  const $ = load(html)
   const series: AppleNewsTodaySeries[] = []
+  const scriptRegExp = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi
 
-  $("script[type='application/ld+json']").each((_, element) => {
+  for (const script of html.matchAll(scriptRegExp)) {
+    if (!/\btype\s*=\s*["']application\/ld\+json["']/i.test(script[1])) continue
     try {
-      series.push(...jsonLdObjects(JSON.parse($(element).text())))
+      series.push(...jsonLdObjects(JSON.parse(script[2])))
     } catch {
     }
-  })
+  }
 
   const appleNewsToday = series.find(item =>
     item.name === "Apple News Today"
