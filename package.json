@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "npm run presource && vite dev",
     "build": "npm run presource && vite build",
+    "postbuild": "tsx ./scripts/copy-public.ts",
     "lint": "eslint",
     "presource": "tsx ./scripts/favicon.ts && tsx ./scripts/source.ts",
     "start": "node --env-file .env.server dist/output/server/index.mjs",

@@ -38,6 +38,8 @@ if (process.env.VERCEL) {
   // }
 } else if (process.env.CF_PAGES) {
   nitroOption.preset = "cloudflare-pages"
+  nitroOption.noPublicDir = true
+  nitroOption.serveStatic = false
   nitroOption.database = {
     default: {
       connector: "cloudflare-d1",
