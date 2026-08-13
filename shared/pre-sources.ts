@@ -47,13 +47,13 @@ export const originSources = {
   },
   apple: {
     name: "Apple News",
-    title: "今日要闻",
+    title: "美区精选与 Podcasts",
     type: "realtime",
     column: "world",
     color: "rose",
     interval: Time.Fast,
-    desc: "Apple News 编辑团队每日简报，来自 Apple News Today，英文标题翻译为中文",
-    home: "https://podcasts.apple.com/us/podcast/apple-news-today/id1473872585",
+    desc: "Apple News 美区编辑精选，以及 Apple News Today、Apple News In Conversation 官方 Podcast；英文标题翻译为中文",
+    home: "https://apps.apple.com/us/app/apple-news/id1066498020",
   },
   ai: {
     name: "美国 AI",

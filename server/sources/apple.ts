@@ -1,4 +1,5 @@
 import { load } from "cheerio"
+import { XMLParser } from "fast-xml-parser"
 import type { NewsItem } from "@shared/types"
 import { translateNewsItemsToChinese } from "../utils/translate"
 
@@ -16,15 +17,49 @@ interface AppleNewsTodaySeries {
   "workExample"?: AppleNewsTodayEpisode | AppleNewsTodayEpisode[]
 }
 
+interface ApplePodcastFeedItem {
+  description?: string | { $text?: string }
+  guid?: string | { $text?: string }
+  link?: string
+  pubDate?: string
+  title?: string | { $text?: string }
+}
+
+interface ApplePodcastFeed {
+  includeEditorialStories?: boolean
+  showName: string
+  url: string
+}
+
 const officialPageUrl = "https://podcasts.apple.com/us/podcast/apple-news-today/id1473872585"
+const podcastFeeds: ApplePodcastFeed[] = [
+  {
+    showName: "Apple News Today",
+    url: "https://apple.news/podcast/apple_news_today",
+    includeEditorialStories: true,
+  },
+  {
+    showName: "Apple News In Conversation",
+    url: "https://apple.news/podcast/apple_news_in_conversation",
+  },
+]
 const browserHeaders = {
-  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept": "application/rss+xml,application/xml;q=0.9,text/html;q=0.8,*/*;q=0.7",
   "Accept-Language": "en-US,en;q=0.9",
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138.0.0.0 Safari/537.36",
 }
 
 function normalizeText(value: string) {
   return value.replace(/\s+/g, " ").trim()
+}
+
+function readText(value: unknown) {
+  if (typeof value === "string" || typeof value === "number") return normalizeText(String(value))
+  if (value && typeof value === "object" && "$text" in value) {
+    const text = (value as { $text?: unknown }).$text
+    return typeof text === "string" || typeof text === "number" ? normalizeText(String(text)) : ""
+  }
+  return ""
 }
 
 function includesType(value: AppleNewsTodaySeries["@type"], expected: string) {
@@ -52,6 +87,102 @@ function normalizeEpisodeUrl(value?: string) {
     return url.href
   } catch {
   }
+}
+
+function normalizeAppleNewsUrl(value?: string) {
+  if (!value) return
+  try {
+    const url = new URL(value)
+    if (url.protocol !== "https:" || url.hostname !== "apple.news" || !/^\/A[\w-]+$/.test(url.pathname)) return
+    url.search = ""
+    url.hash = ""
+    return url.href
+  } catch {
+  }
+}
+
+function podcastEpisodeItem(item: ApplePodcastFeedItem, showName: string): NewsItem | undefined {
+  const title = readText(item.title)
+  const url = normalizeAppleNewsUrl(item.link)
+  if (!title || title.length < 5 || !url) return
+  return {
+    id: `podcast:${readText(item.guid) || url}`,
+    title,
+    url,
+    pubDate: toTimestamp(item.pubDate),
+    extra: {
+      info: `Apple Podcasts · ${showName}`,
+      hover: `来源：Apple News 官方 Podcast\n节目：${showName}`,
+    },
+  }
+}
+
+function editorialStoryItems(item: ApplePodcastFeedItem): NewsItem[] {
+  const description = readText(item.description)
+  if (!description) return []
+  const $ = load(description)
+  const pubDate = toTimestamp(item.pubDate)
+  const stories: NewsItem[] = []
+
+  $("p").each((_, element) => {
+    const paragraph = $(element)
+    const links = paragraph.find("a").toArray().flatMap((anchor) => {
+      const source = normalizeText($(anchor).text())
+      const url = normalizeAppleNewsUrl($(anchor).attr("href"))
+      return source && url ? [{ source, url }] : []
+    })
+    if (links.length !== 1) return
+
+    const { source, url } = links[0]
+    const paragraphText = normalizeText(paragraph.text())
+    const sourceIndex = paragraphText.indexOf(source)
+    const title = normalizeText(paragraphText.slice(0, sourceIndex).replace(/\bThe\s*$/i, "")).replace(/[.:,;\s]+$/, "")
+    if (sourceIndex < 20 || title.length < 20) return
+
+    stories.push({
+      id: url,
+      title,
+      url,
+      pubDate,
+      extra: {
+        info: `Apple News 美区精选 · ${source}`,
+        hover: `来源：Apple News 美区编辑精选\n原媒体：${source}`,
+      },
+    })
+  })
+
+  return stories
+}
+
+export function curateAppleNewsItems(items: NewsItem[], limit = 50) {
+  const seen = new Set<string>()
+  return items
+    .filter(item => item.url && String(item.title).length >= 5)
+    .sort((a, b) => Number(b.pubDate ?? 0) - Number(a.pubDate ?? 0))
+    .filter((item) => {
+      if (seen.has(item.url)) return false
+      seen.add(item.url)
+      return true
+    })
+    .slice(0, limit)
+}
+
+export function parseAppleNewsPodcastFeed(raw: string, feed: ApplePodcastFeed, limit = 50) {
+  const parser = new XMLParser({
+    attributeNamePrefix: "",
+    textNodeName: "$text",
+    ignoreAttributes: false,
+  })
+  const channel = parser.parse(raw)?.rss?.channel
+  const feedItems = channel?.item
+    ? (Array.isArray(channel.item) ? channel.item : [channel.item]) as ApplePodcastFeedItem[]
+    : []
+
+  return curateAppleNewsItems(feedItems.flatMap((item) => {
+    const episode = podcastEpisodeItem(item, feed.showName)
+    const stories = feed.includeEditorialStories ? editorialStoryItems(item) : []
+    return [...(episode ? [episode] : []), ...stories]
+  }), limit)
 }
 
 function jsonLdObjects(value: unknown): AppleNewsTodaySeries[] {
@@ -123,13 +254,26 @@ export function restoreAppleNewsProperNames(originalTitle: string, translatedTit
 }
 
 export default defineSource(async () => {
-  const html = await myFetch<string>(officialPageUrl, {
-    responseType: "text",
-    headers: browserHeaders,
-    retry: 1,
-    timeout: 8000,
-  })
-  const items = parseAppleNewsTodayPage(html)
+  const results = await Promise.allSettled(podcastFeeds.map(async (feed) => {
+    const raw = await myFetch<string>(feed.url, {
+      responseType: "text",
+      headers: browserHeaders,
+      retry: 1,
+      timeout: 10000,
+    })
+    return parseAppleNewsPodcastFeed(raw, feed)
+  }))
+  let items = curateAppleNewsItems(results.flatMap(result => result.status === "fulfilled" ? result.value : []))
+
+  if (!items.length) {
+    const html = await myFetch<string>(officialPageUrl, {
+      responseType: "text",
+      headers: browserHeaders,
+      retry: 1,
+      timeout: 8000,
+    })
+    items = parseAppleNewsTodayPage(html)
+  }
   if (!items.length) throw new Error("Cannot fetch Apple News Today episodes")
 
   const translated = await translateNewsItemsToChinese(items)
