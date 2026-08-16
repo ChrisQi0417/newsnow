@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { cycloneToNewsItem, parseJmaFeedEntries, parseJmaTyphoonBulletin, parseNhcStorms, resolveCloudflareLocation, weatherToNewsItem } from "../server/sources/weather"
+import { cycloneToNewsItem, earthquakeToNewsItem, parseJmaFeedEntries, parseJmaTyphoonBulletin, parseNhcStorms, parseUsgsEarthquakes, resolveCloudflareLocation, weatherToNewsItem } from "../server/sources/weather"
 
 describe("weather and tropical cyclone source", () => {
   it("uses Cloudflare IP geolocation without exposing the IP address", () => {
@@ -136,5 +136,68 @@ describe("weather and tropical cyclone source", () => {
     expect(item.title).toBe("实时台风/飓风｜大西洋 热带风暴 Cristobal · 36.7°N 43.0°W · 最大风速 40 节")
     expect(item.extra?.info).toBe("1,008 hPa · 向东移动 · 25 节")
     expect(item.url).toBe("https://www.nhc.noaa.gov/text/MIATCPAT3.shtml")
+  })
+
+  it("parses and formats recent global M4.5+ USGS earthquakes", () => {
+    const earthquakes = parseUsgsEarthquakes({
+      features: [
+        {
+          type: "Feature",
+          id: "us-newer",
+          geometry: { type: "Point", coordinates: [167.1934, -14.5474, 188.148] },
+          properties: {
+            alert: "yellow",
+            mag: 5.6,
+            place: "56 km NNE of Port-Olry, Vanuatu",
+            sig: 600,
+            status: "reviewed",
+            time: 1786850424373,
+            tsunami: 1,
+            type: "earthquake",
+            url: "https://earthquake.usgs.gov/earthquakes/eventpage/us-newer",
+          },
+        },
+        {
+          type: "Feature",
+          id: "us-older",
+          geometry: { type: "Point", coordinates: [120.5, -7.8, 10] },
+          properties: {
+            mag: 4.8,
+            place: "Banda Sea",
+            status: "automatic",
+            time: 1786800000000,
+            tsunami: 0,
+            type: "earthquake",
+            url: "https://example.com/untrusted",
+          },
+        },
+        {
+          type: "Feature",
+          id: "us-quarry",
+          geometry: { type: "Point", coordinates: [-120, 40, 1] },
+          properties: { mag: 5, place: "A quarry", time: 1786900000000, type: "quarry blast" },
+        },
+        {
+          type: "Feature",
+          id: "us-small",
+          geometry: { type: "Point", coordinates: [-120, 40, 5] },
+          properties: { mag: 4.4, place: "A small event", time: 1786900000000, type: "earthquake" },
+        },
+      ],
+    })
+
+    expect(earthquakes.map(item => item.eventId)).toEqual(["us-newer", "us-older"])
+    expect(earthquakes[1].url).toBe("https://earthquake.usgs.gov/earthquakes/eventpage/us-older")
+
+    const item = earthquakeToNewsItem(earthquakes[0])
+    expect(item).toMatchObject({
+      id: "earthquake-usgs-us-newer",
+      title: "全球地震｜M5.6 · Port-Olry, Vanuatu以东北偏北56公里",
+      pubDate: 1786850424373,
+      extra: {
+        info: "深度 188.1 km · 14.5°S 167.2°E · 已复核 · 海啸标记",
+      },
+    })
+    expect(item.extra?.hover).toContain("海啸标记：USGS 事件记录标记为 1")
   })
 })

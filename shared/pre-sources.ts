@@ -26,13 +26,13 @@ export const originSources = {
     home: "https://www.tradingview.com/markets/world-stocks/world-stock-markets/",
   },
   weather: {
-    name: "天气与台风",
-    title: "当地・北京・台风",
+    name: "天气・台风・地震",
+    title: "当地・北京・台风・全球地震",
     type: "realtime",
     column: "world",
     color: "sky",
     interval: Time.Fast,
-    desc: "按访问 IP 的近似位置显示当地及北京天气，并汇总 JMA 与 NHC 实时台风和飓风公报",
+    desc: "按访问 IP 的近似位置显示当地及北京天气，汇总 JMA/NHC 实时台风，并显示 USGS 过去24小时全球 M4.5+ 地震",
     home: "https://open-meteo.com/",
   },
   pi: {

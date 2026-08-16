@@ -69,6 +69,46 @@ interface NhcResponse {
   }>
 }
 
+interface UsgsEarthquakeResponse {
+  features?: Array<{
+    geometry?: {
+      coordinates?: unknown[]
+      type?: string
+    }
+    id?: string
+    properties?: {
+      alert?: string | null
+      mag?: number | string
+      place?: string
+      sig?: number | string
+      status?: string
+      time?: number | string
+      tsunami?: number | string
+      type?: string
+      url?: string
+    }
+    type?: string
+  }>
+  metadata?: {
+    generated?: number | string
+  }
+}
+
+interface EarthquakeSnapshot {
+  alert?: string
+  depth: number
+  eventId: string
+  latitude: number
+  longitude: number
+  magnitude: number
+  place: string
+  publishedAt: number
+  significance?: number
+  status: string
+  tsunami: boolean
+  url: string
+}
+
 const beijingLocation: WeatherLocation = {
   detail: "北京市，中国",
   label: "北京",
@@ -80,6 +120,8 @@ const beijingLocation: WeatherLocation = {
 const jmaFeedUrl = "https://www.data.jma.go.jp/developer/xml/feed/extra.xml"
 const jmaTyphoonPage = "https://www.jma.go.jp/bosai/map.html#5/"
 const nhcCurrentStormsUrl = "https://www.nhc.noaa.gov/CurrentStorms.json"
+const usgsEarthquakeFeedUrl = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.geojson"
+const usgsEarthquakePage = "https://earthquake.usgs.gov/earthquakes/map/"
 const parser = new XMLParser({ ignoreAttributes: false, removeNSPrefix: true })
 const sharedCacheDuration = 5 * 60 * 1000
 let sharedCache: { expiresAt: number, items: NewsItem[] } | undefined
@@ -167,6 +209,125 @@ function coordinates(latitude: number | undefined, longitude: number | undefined
   const latitudeLabel = `${formatNumber(Math.abs(latitude))}°${latitude >= 0 ? "N" : "S"}`
   const longitudeLabel = `${formatNumber(Math.abs(longitude))}°${longitude >= 0 ? "E" : "W"}`
   return `${latitudeLabel} ${longitudeLabel}`
+}
+
+function earthquakePlace(value: string) {
+  const match = /^(\d+(?:\.\d+)?) km ([A-Z]+) of (.+)$/.exec(value)
+  if (!match) return value
+  const directions: Record<string, string> = {
+    E: "东",
+    ENE: "东北偏东",
+    ESE: "东南偏东",
+    N: "北",
+    NE: "东北",
+    NNE: "东北偏北",
+    NNW: "西北偏北",
+    NW: "西北",
+    S: "南",
+    SE: "东南",
+    SSE: "东南偏南",
+    SSW: "西南偏南",
+    SW: "西南",
+    W: "西",
+    WNW: "西北偏西",
+    WSW: "西南偏西",
+  }
+  const direction = directions[match[2]]
+  return direction ? `${match[3]}以${direction}${match[1]}公里` : value
+}
+
+function usgsEventUrl(value: string | undefined, eventId: string) {
+  try {
+    const url = new URL(value ?? "")
+    if (url.protocol === "https:" && url.hostname === "earthquake.usgs.gov") return url.href
+  } catch {
+  }
+  return `https://earthquake.usgs.gov/earthquakes/eventpage/${encodeURIComponent(eventId)}`
+}
+
+export function parseUsgsEarthquakes(response: UsgsEarthquakeResponse, limit = 12): EarthquakeSnapshot[] {
+  const seen = new Set<string>()
+  return (response.features ?? []).flatMap((feature): EarthquakeSnapshot[] => {
+    const properties = feature.properties
+    const values = feature.geometry?.coordinates ?? []
+    const eventId = typeof feature.id === "string" ? feature.id.trim() : ""
+    const place = typeof properties?.place === "string" ? properties.place.trim() : ""
+    const magnitude = finiteNumber(properties?.mag)
+    const publishedAt = finiteNumber(properties?.time)
+    const longitude = finiteNumber(values[0])
+    const latitude = finiteNumber(values[1])
+    const depth = finiteNumber(values[2])
+    if (
+      feature.type !== "Feature"
+      || feature.geometry?.type !== "Point"
+      || properties?.type !== "earthquake"
+      || !eventId
+      || seen.has(eventId)
+      || !place
+      || magnitude === undefined
+      || magnitude < 4.5
+      || publishedAt === undefined
+      || longitude === undefined
+      || latitude === undefined
+      || depth === undefined
+      || Math.abs(latitude) > 90
+      || Math.abs(longitude) > 180
+    ) {
+      return []
+    }
+
+    seen.add(eventId)
+    return [{
+      alert: typeof properties.alert === "string" ? properties.alert : undefined,
+      depth,
+      eventId,
+      latitude,
+      longitude,
+      magnitude,
+      place,
+      publishedAt,
+      significance: finiteNumber(properties.sig),
+      status: typeof properties.status === "string" ? properties.status : "unknown",
+      tsunami: finiteNumber(properties.tsunami) === 1,
+      url: usgsEventUrl(properties.url, eventId),
+    }]
+  }).sort((a, b) => b.publishedAt - a.publishedAt).slice(0, limit)
+}
+
+export function earthquakeToNewsItem(earthquake: EarthquakeSnapshot): NewsItem {
+  const status = earthquake.status === "reviewed"
+    ? "已复核"
+    : earthquake.status === "automatic" ? "自动发布" : "状态待确认"
+  const alert = earthquake.alert
+    ? `震动影响 ${earthquake.alert.toLocaleUpperCase()}`
+    : ""
+
+  return {
+    id: `earthquake-usgs-${earthquake.eventId}`,
+    title: `全球地震｜M${formatNumber(earthquake.magnitude)} · ${earthquakePlace(earthquake.place)}`,
+    url: earthquake.url,
+    pubDate: earthquake.publishedAt,
+    extra: {
+      info: [
+        `深度 ${formatNumber(earthquake.depth)} km`,
+        coordinates(earthquake.latitude, earthquake.longitude),
+        status,
+        earthquake.tsunami ? "海啸标记" : "",
+      ].filter(Boolean).join(" · "),
+      hover: [
+        `震级：M${formatNumber(earthquake.magnitude)}`,
+        `地点：${earthquake.place}`,
+        `深度：${formatNumber(earthquake.depth)} km`,
+        `坐标：${coordinates(earthquake.latitude, earthquake.longitude)}`,
+        `发生时间：${new Date(earthquake.publishedAt).toISOString()}`,
+        `状态：${status}`,
+        earthquake.significance === undefined ? "" : `USGS 显著度：${formatNumber(earthquake.significance, 0)}`,
+        alert,
+        earthquake.tsunami ? "海啸标记：USGS 事件记录标记为 1，请以官方预警机构公告为准" : "",
+        "数据源：美国地质调查局（USGS）",
+      ].filter(Boolean).join("\n"),
+    },
+  }
 }
 
 export function resolveCloudflareLocation(cf: unknown): WeatherLocation | undefined {
@@ -455,16 +616,38 @@ async function fetchCycloneItems() {
   } satisfies NewsItem]
 }
 
+async function fetchEarthquakeItems() {
+  const response = await myFetch<UsgsEarthquakeResponse>(usgsEarthquakeFeedUrl, {
+    headers: { "User-Agent": "NewsNow global earthquake monitor" },
+    retry: 1,
+    timeout: 8000,
+  })
+  const earthquakes = parseUsgsEarthquakes(response)
+  if (earthquakes.length) return earthquakes.map(earthquakeToNewsItem)
+
+  return [{
+    id: "earthquake-current-status",
+    title: "全球地震｜过去24小时暂无 M4.5+ 地震记录",
+    url: usgsEarthquakePage,
+    pubDate: finiteNumber(response.metadata?.generated) ?? Date.now(),
+    extra: {
+      info: "USGS · M4.5+ · 过去24小时",
+      hover: "数据源：美国地质调查局（USGS）全球实时 GeoJSON",
+    },
+  } satisfies NewsItem]
+}
+
 async function getSharedItems() {
   const now = Date.now()
   if (sharedCache && sharedCache.expiresAt > now) return sharedCache.items
   if (sharedRequest) return sharedRequest
 
-  sharedRequest = Promise.allSettled([fetchWeather(beijingLocation), fetchCycloneItems()])
+  sharedRequest = Promise.allSettled([fetchWeather(beijingLocation), fetchCycloneItems(), fetchEarthquakeItems()])
     .then((results) => {
       const items: NewsItem[] = []
       const weatherResult = results[0]
       const cycloneResult = results[1]
+      const earthquakeResult = results[2]
       if (weatherResult.status === "fulfilled") {
         items.push(weatherResult.value)
       } else {
@@ -478,6 +661,17 @@ async function getSharedItems() {
       }
       if (cycloneResult.status === "fulfilled") {
         items.push(...cycloneResult.value)
+      }
+      if (earthquakeResult.status === "fulfilled") {
+        items.push(...earthquakeResult.value)
+      } else {
+        items.push({
+          id: "earthquake-unavailable",
+          title: "全球地震｜USGS 实时数据暂时不可用",
+          url: usgsEarthquakePage,
+          pubDate: Date.now(),
+          extra: { info: "稍后刷新重试" },
+        })
       }
       sharedCache = { expiresAt: Date.now() + sharedCacheDuration, items }
       return items
@@ -510,6 +704,6 @@ export default defineSource(async (event) => {
   if (sharedResult.status === "fulfilled") {
     items.push(...sharedResult.value)
   }
-  if (!items.length) throw new Error("Cannot fetch weather or cyclone data")
+  if (!items.length) throw new Error("Cannot fetch weather, cyclone, or earthquake data")
   return items
 })
