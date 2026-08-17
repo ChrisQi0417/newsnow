@@ -1,3 +1,4 @@
+import { sources } from "@shared/sources"
 import type { SourceID } from "@shared/types"
 import type { SourceGetter } from "./types"
 
@@ -39,8 +40,22 @@ const sourceModules = {
 
 type SourceModuleName = keyof typeof sourceModules
 
+export function resolveSourceID(id: SourceID): SourceID {
+  const visited = new Set<SourceID>()
+  let current = id
+
+  while (!visited.has(current)) {
+    const redirect = sources[current]?.redirect
+    if (!redirect) break
+    visited.add(current)
+    current = redirect
+  }
+
+  return current
+}
+
 export function sourceModuleName(id: SourceID): SourceModuleName | undefined {
-  const name = id.split("-")[0] as SourceModuleName
+  const name = resolveSourceID(id).split("-")[0] as SourceModuleName
   return name in sourceModules ? name : undefined
 }
 
@@ -49,9 +64,10 @@ export function hasGetter(id: SourceID) {
 }
 
 export async function getGetter(id: SourceID): Promise<SourceGetter | undefined> {
-  const name = sourceModuleName(id)
+  const resolvedID = resolveSourceID(id)
+  const name = sourceModuleName(resolvedID)
   if (!name) return
 
   const source = (await sourceModules[name]()).default
-  return typeof source === "function" ? source : source[id]
+  return typeof source === "function" ? source : source[resolvedID]
 }

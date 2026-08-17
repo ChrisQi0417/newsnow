@@ -1,13 +1,20 @@
 import { XMLParser } from "fast-xml-parser"
 import type { RSSInfo } from "../types"
 
-export async function rss2json(url: string): Promise<RSSInfo | undefined> {
-  if (!/^https?:\/\/[^\s$.?#].\S*/i.test(url)) return
+function text(value: any) {
+  return value && typeof value === "object" && "$text" in value ? value.$text : value
+}
 
-  const data = await myFetch<string>(url, {
-    responseType: "text",
-  })
+function link(value: any): string {
+  if (Array.isArray(value)) {
+    const alternate = value.find(item => item?.rel === "alternate" && item?.href)
+    return link(alternate ?? value[0])
+  }
+  if (value && typeof value === "object") return String(value.href ?? value.$text ?? "")
+  return typeof value === "string" ? value : ""
+}
 
+export function parseRSSXML(data: string): RSSInfo | undefined {
   const xml = new XMLParser({
     attributeNamePrefix: "",
     textNodeName: "$text",
@@ -24,7 +31,7 @@ export async function rss2json(url: string): Promise<RSSInfo | undefined> {
   const rss = {
     title: channel.title ?? "",
     description: channel.description ?? "",
-    link: channel.link && channel.link.href ? channel.link.href : channel.link,
+    link: link(channel.link),
     image: channel.image ? channel.image.url : channel["itunes:image"] ? channel["itunes:image"].href : "",
     category: channel.category || [],
     updatedTime: channel.lastBuildDate ?? channel.updated,
@@ -39,12 +46,12 @@ export async function rss2json(url: string): Promise<RSSInfo | undefined> {
     const media = {}
 
     const obj = {
-      id: val.guid && val.guid.$text ? val.guid.$text : val.id,
-      title: val.title && val.title.$text ? val.title.$text : val.title,
-      description: val.summary && val.summary.$text ? val.summary.$text : val.description,
-      link: val.link && val.link.href ? val.link.href : val.link,
+      id: text(val.guid) ?? text(val.id),
+      title: text(val.title),
+      description: text(val.summary) ?? text(val.description),
+      link: link(val.link),
       author: val.author && val.author.name ? val.author.name : val["dc:creator"],
-      created: val.updated ?? val.pubDate ?? val.created,
+      created: val.published ?? val.updated ?? val.pubDate ?? val.created ?? val["dc:date"],
       category: val.category || [],
       content: val.content && val.content.$text ? val.content.$text : val["content:encoded"],
       enclosures: val.enclosure ? (Array.isArray(val.enclosure) ? val.enclosure : [val.enclosure]) : [],
@@ -82,4 +89,13 @@ export async function rss2json(url: string): Promise<RSSInfo | undefined> {
   }
 
   return rss
+}
+
+export async function rss2json(url: string): Promise<RSSInfo | undefined> {
+  if (!/^https?:\/\/[^\s$.?#].\S*/i.test(url)) return
+
+  const data = await myFetch<string>(url, {
+    responseType: "text",
+  })
+  return parseRSSXML(data)
 }

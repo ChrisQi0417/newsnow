@@ -1,5 +1,5 @@
 import type { SourceID, SourceResponse } from "@shared/types"
-import { getGetter, hasGetter } from "#/getters"
+import { getGetter, hasGetter, resolveSourceID } from "#/getters"
 import { getCacheTable } from "#/database/cache"
 import type { CacheInfo } from "#/types"
 
@@ -7,14 +7,9 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
   try {
     const query = getQuery(event)
     const latest = query.latest !== undefined && query.latest !== "false"
-    let id = query.id as SourceID
-    const isValid = (id: SourceID) => !id || !sources[id] || !hasGetter(id)
-
-    if (isValid(id)) {
-      const redirectID = sources?.[id]?.redirect
-      if (redirectID) id = redirectID
-      if (isValid(id)) throw new Error("Invalid source id")
-    }
+    const requestedID = query.id as SourceID
+    const id = resolveSourceID(requestedID)
+    if (!requestedID || !sources[requestedID] || !sources[id] || !hasGetter(id)) throw new Error("Invalid source id")
 
     const requestScoped = id === "weather"
     if (requestScoped) setHeader(event, "Cache-Control", "private, no-store")

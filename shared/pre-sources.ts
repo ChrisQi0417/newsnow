@@ -91,7 +91,7 @@ export const originSources = {
     column: "china",
     color: "red",
     interval: Time.Fast,
-    desc: "国务院政策和政务原始发布",
+    desc: "中国政府网官方要闻最新，旧接口异常时回退国务院政策原始发布",
     home: "https://www.gov.cn/",
   },
   people: {
@@ -240,7 +240,7 @@ export const originSources = {
     column: "world",
     color: "blue",
     interval: Time.Common,
-    desc: "AFP.com official flash news, titles translated to Chinese",
+    desc: "AFP News Hub 官方实时快讯；不可用时回退 AFP Fact Check 与 AFP News Agency 官方视频，标题翻译为中文",
     home: "https://www.afp.com/en",
   },
   bbc: {
@@ -346,7 +346,7 @@ export const originSources = {
     column: "finance",
     color: "orange",
     interval: Time.Common,
-    desc: "Nikkei Asia RSS, titles translated to Chinese",
+    desc: "Nikkei Asia 官方新闻 Sitemap，带准确发布时间并翻译为中文",
     home: "https://asia.nikkei.com/",
   },
   dw: {

@@ -14,12 +14,19 @@ export function defineRSSSource(url: string, option?: SourceOption): SourceGette
   return async () => {
     const data = await rss2json(url)
     if (!data?.items.length) throw new Error("Cannot fetch rss data")
-    let items: NewsItem[] = data.items.map(item => ({
-      title: item.title,
-      url: item.link,
-      id: item.link,
-      pubDate: !option?.hiddenDate ? item.created : undefined,
-    }))
+    const seen = new Set<string>()
+    let items: NewsItem[] = data.items.flatMap((item) => {
+      const title = String(item.title ?? "").replace(/\s+/g, " ").trim()
+      const url = String(item.link ?? "").trim()
+      if (!title || !url || seen.has(url)) return []
+      seen.add(url)
+      return [{
+        title,
+        url,
+        id: url,
+        pubDate: !option?.hiddenDate ? item.created : undefined,
+      }]
+    })
     if (option?.limit) items = items.slice(0, option.limit)
     return option?.translate ? translateNewsItemsToChinese(items) : items
   }
