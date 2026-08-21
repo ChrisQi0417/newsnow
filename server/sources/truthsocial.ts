@@ -37,9 +37,8 @@ export default defineSource(async () => {
   const news: NewsItem[] = items.slice(0, 50).map((item) => {
     const originalTitle = item.title?.trim()
     const description = stripHTML(item.description)
-    const linkCandidate = originalTitle?.replace(/^RT[:：]/i, "").trim() ?? ""
     const isPlaceholder = !originalTitle || originalTitle.startsWith("[No Title]")
-    const isLinkOnly = /^https?:\/\//i.test(linkCandidate) || /truthsocial\.com\//i.test(linkCandidate)
+    const isLinkOnly = [description, originalTitle].some(value => /^(?:RT[:：]\s*)?https?:\/\//i.test(value ?? ""))
     const title = isPlaceholder
       ? description || "Truth Social 帖子"
       : isLinkOnly

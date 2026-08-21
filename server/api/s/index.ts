@@ -6,7 +6,7 @@ import { getTranslationDiagnostic } from "#/utils/translate"
 
 export default defineEventHandler(async (event): Promise<SourceResponse> => {
   try {
-    setHeader(event, "X-NewsNow-Revision", "translation-batch-v4")
+    setHeader(event, "X-NewsNow-Revision", "translation-batch-v5")
     const query = getQuery(event)
     const latest = query.latest !== undefined && query.latest !== "false"
     const requestedID = query.id as SourceID
