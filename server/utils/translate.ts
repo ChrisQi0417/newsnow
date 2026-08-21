@@ -22,6 +22,52 @@ function shouldTranslate(title: string) {
   return latinRegExp.test(title) && !zhRegExp.test(title)
 }
 
+function decodeMyMemoryText(value: string) {
+  return value
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+}
+
+async function translateWithMyMemory(texts: string[]): Promise<string[]> {
+  const translated: string[] = []
+  let successes = 0
+
+  for (const text of texts) {
+    const url = new URL("https://api.mymemory.translated.net/get")
+    url.searchParams.set("q", text)
+    url.searchParams.set("langpair", "en|zh-CN")
+
+    try {
+      const response = await fetch(url.toString(), {
+        headers: {
+          "Accept": "application/json",
+          "User-Agent": "NewsNow translation",
+        },
+      })
+      if (!response.ok) {
+        translated.push(text)
+        continue
+      }
+      const data = JSON.parse(await response.text())
+      const value = normalizeTitle(decodeMyMemoryText(String(data?.responseData?.translatedText ?? "")))
+      if (value && value !== text) {
+        translated.push(value)
+        successes += 1
+      } else {
+        translated.push(text)
+      }
+    } catch {
+      translated.push(text)
+    }
+  }
+
+  translationDiagnostic = `mymemory:${successes}/${texts.length}`
+  return translated
+}
+
 async function translateBatch(texts: string[]): Promise<string[]> {
   let data: any
   const diagnostics: string[] = []
@@ -60,17 +106,16 @@ async function translateBatch(texts: string[]): Promise<string[]> {
 
   const translated = readGoogleTranslateResponse(data)
   if (!translated) {
-    translationDiagnostic = diagnostics.join(",") || "no-response"
-    return texts
+    translationDiagnostic = `${diagnostics.join(",") || "no-response"};fallback`
+    return translateWithMyMemory(texts)
   }
   const lines = translated.split(/\n+/).map(normalizeTitle).filter(Boolean)
   if (lines.length === texts.length) return lines
   if (texts.length === 1) return [normalizeTitle(translated)]
-  translationDiagnostic = `line-mismatch:${lines.length}/${texts.length}`
+  translationDiagnostic = `line-mismatch:${lines.length}/${texts.length};fallback`
 
-  // A malformed batch response must not fan out into one request per title.
-  // The caller can still display the original title and retry on the next refresh.
-  return texts
+  // Handle a malformed batch response title by title with a fallback provider.
+  return translateWithMyMemory(texts)
 }
 
 export async function translateTextsToChinese(texts: string[]): Promise<string[]> {
