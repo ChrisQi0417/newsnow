@@ -1,4 +1,3 @@
-import { load } from "cheerio"
 import { XMLParser } from "fast-xml-parser"
 import type { NewsItem } from "@shared/types"
 import { translateNewsItemsToChinese } from "../utils/translate"
@@ -40,54 +39,75 @@ export function parseAPNewsSitemap(xml: string) {
   })
 }
 
-function timestampFromElement($: ReturnType<typeof load>, element: any) {
-  const container = $(element).closest("[data-posted-date-timestamp]")
-  const value = Number(container.attr("data-posted-date-timestamp"))
-  return Number.isFinite(value) && value > 0 ? value : undefined
+function decodeAPText(value: string) {
+  return value
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
 }
 
 export function parseAPNewsPage(html: string, url: string) {
-  const $ = load(html)
   const itemIndexes = new Map<string, number>()
   const items: NewsItem[] = []
 
-  const collect = (selector: string) => {
-    $(selector).each((_, element) => {
-      const href = $(element).attr("href")
-      const title = $(element).text().replace(/\s+/g, " ").trim()
-      if (!href || !title || title.length < 12) return
+  const timestampPattern = /data-posted-date-timestamp\s*=\s*["'](\d+)["']/gi
+  const timestamps = [...html.matchAll(timestampPattern)]
+  const fragments = timestamps.length
+    ? timestamps.map((match, index) => ({
+        html: html.slice((match.index ?? 0) + match[0].length, timestamps[index + 1]?.index ?? html.length),
+        pubDate: Number(match[1]),
+      }))
+    : [{ html, pubDate: undefined }]
+  const anchorPattern = /<a[^>]*href\s*=\s*["']([^"']*\/article\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi
 
-      const articleUrl = new URL(href, url).href
-      if (new URL(articleUrl).hostname !== "apnews.com") return
-      const existingIndex = itemIndexes.get(articleUrl)
+  for (const fragment of fragments) {
+    anchorPattern.lastIndex = 0
+    for (const match of fragment.html.matchAll(anchorPattern)) {
+      const href = match[1]
+      const title = decodeAPText(match[2]).replace(/\s+/g, " ").trim()
+      if (!href || !title || title.length < 12) continue
+
+      let articleUrl: URL
+      try {
+        articleUrl = new URL(href, url)
+      } catch {
+        continue
+      }
+      if (articleUrl.hostname !== "apnews.com") continue
+      const normalizedUrl = articleUrl.href
+      const existingIndex = itemIndexes.get(normalizedUrl)
       if (existingIndex !== undefined) {
         if (title.length > items[existingIndex].title.length) items[existingIndex].title = title
-        return
+        continue
       }
-      itemIndexes.set(articleUrl, items.length)
+      itemIndexes.set(normalizedUrl, items.length)
       items.push({
-        id: articleUrl,
+        id: normalizedUrl,
         title,
-        url: articleUrl,
-        pubDate: timestampFromElement($, element),
+        url: normalizedUrl,
+        pubDate: Number.isFinite(fragment.pubDate) && fragment.pubDate > 0 ? fragment.pubDate : undefined,
       })
-    })
+    }
   }
-
-  collect("[data-posted-date-timestamp] a[href*='/article/']")
-  if (!items.length) collect("a[href*='/article/']")
   return items.slice(0, 50)
 }
 
 function defineAPNewsSource(url: string) {
   return defineSource(async () => {
-    const [html, sitemap] = await Promise.all([
+    const [pageResult, sitemapResult] = await Promise.allSettled([
       myFetch<string>(url, { responseType: "text" }),
       myFetch<string>(newsSitemapUrl, { responseType: "text" }),
     ])
-    const sitemapItems = parseAPNewsSitemap(sitemap)
+    const html = pageResult.status === "fulfilled" ? pageResult.value : ""
+    const sitemap = sitemapResult.status === "fulfilled" ? sitemapResult.value : ""
+    const sitemapItems = sitemap ? parseAPNewsSitemap(sitemap) : []
     const metadata = new Map(sitemapItems.map(item => [item.url, item]))
-    const items = parseAPNewsPage(html, url).map((item) => {
+    const pageItems = html ? parseAPNewsPage(html, url) : []
+    const items = (pageItems.length ? pageItems : sitemapItems.slice(0, 50)).map((item) => {
       const official = metadata.get(item.url)
       return official ? { ...item, title: official.title, pubDate: official.pubDate } : item
     })

@@ -1,4 +1,3 @@
-import { load } from "cheerio"
 import type { NewsItem } from "@shared/types"
 import { translateNewsItemsToChinese } from "../utils/translate"
 
@@ -9,20 +8,40 @@ const officialVideoFeed = defineRSSSource("https://www.youtube.com/feeds/videos.
 })
 const factCheckReaderUrl = "https://r.jina.ai/http://factcheck.afp.com/"
 
+function stripAfpMarkup(value: string) {
+  return value
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function readAfpSpan(fragment: string, className: string) {
+  const match = new RegExp(`<span\\b[^>]*class=["'][^"']*\\b${className}\\b[^"']*["'][^>]*>([\\s\\S]*?)<\\/span>`, "i").exec(fragment)
+  return match ? stripAfpMarkup(match[1]) : ""
+}
+
 export function parseAfpNewsHub(html: string): NewsItem[] {
-  const $ = load(html)
   const items: NewsItem[] = []
   const seen = new Set<string>()
 
-  $("#header_slider p.afp_news_visibility").each((_, element) => {
-    const city = $(element).find("span").first().text().replace(/\s+/g, " ").trim()
-    const date = $(element).find(".date").text().replace(/^\s*\|\s*/, "").trim()
-    const title = $(element).find(".title").text().replace(/^\s*\|\s*/, "").replace(/\s+/g, " ").trim()
-    if (!date || !title) return
+  const entryPattern = /<p[^>]*class=["'][^"']*\bafp_news_visibility\b[^"']*["'][^>]*>([\s\S]*?)<\/p>/gi
+  for (const match of html.matchAll(entryPattern)) {
+    const fragment = match[1]
+    const firstSpan = /<span[^>]*>([\s\S]*?)<\/span>/i.exec(fragment)
+    const city = firstSpan ? stripAfpMarkup(firstSpan[1]) : ""
+    const date = readAfpSpan(fragment, "date").replace(/^\s*\|\s*/, "").trim()
+    const title = readAfpSpan(fragment, "title").replace(/^\s*\|\s*/, "").trim()
+    if (!date || !title) continue
 
     const pubDate = tranformToUTC(date, "DD/MM/YYYY - HH:mm:ss", "UTC")
     const key = `${pubDate}:${title}`
-    if (!Number.isFinite(pubDate) || seen.has(key)) return
+    if (!Number.isFinite(pubDate) || seen.has(key)) continue
     seen.add(key)
 
     const url = `${newsHubUrl}?at=${pubDate}`
@@ -36,7 +55,7 @@ export function parseAfpNewsHub(html: string): NewsItem[] {
         hover: city ? `来源：AFP News Hub 官方快讯\n发布地：${city}` : "来源：AFP News Hub 官方快讯",
       },
     })
-  })
+  }
 
   return items.sort((a, b) => Number(b.pubDate) - Number(a.pubDate)).slice(0, 30)
 }
