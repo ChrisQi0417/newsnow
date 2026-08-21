@@ -34,8 +34,9 @@ const marketConfigs: MarketConfig[] = [
   { symbol: "TVC:DJI", fallbackSymbol: "usDJI", region: "美国", name: "道琼斯", currency: "USD", timezone: "America/New_York" },
   { symbol: "NASDAQ:IXIC", fallbackSymbol: "usIXIC", region: "美国", name: "纳斯达克综合", currency: "USD", timezone: "America/New_York" },
   { symbol: "SSE:000001", fallbackSymbol: "sh000001", region: "中国", name: "上证综指", currency: "CNY", timezone: "Asia/Shanghai" },
-  { symbol: "SSE:000300", region: "中国", name: "沪深300", currency: "CNY", timezone: "Asia/Shanghai" },
   { symbol: "SZSE:399001", region: "中国", name: "深证成指", currency: "CNY", timezone: "Asia/Shanghai" },
+  { symbol: "SZSE:399006", fallbackSymbol: "sz399006", region: "中国", name: "创业板", currency: "CNY", timezone: "Asia/Shanghai" },
+  { symbol: "SSE:000688", fallbackSymbol: "sh000688", region: "中国", name: "科创板", currency: "CNY", timezone: "Asia/Shanghai" },
   { symbol: "TVC:HSI", fallbackSymbol: "hkHSI", region: "中国香港", name: "恒生指数", currency: "HKD", timezone: "Asia/Hong_Kong" },
   { symbol: "TVC:NI225", region: "日本", name: "日经225", currency: "JPY", timezone: "Asia/Tokyo" },
   { symbol: "KRX:KOSPI", region: "韩国", name: "KOSPI", currency: "KRW", timezone: "Asia/Seoul" },
@@ -230,7 +231,10 @@ export default defineSource(async () => {
     logger.warn("failed to fetch TradingView global market quotes", error)
   }
 
-  if (quotes.length < 10) {
+  const needsFallback = marketConfigs.some(config =>
+    config.fallbackSymbol && !quotes.some(quote => quote.symbol === config.symbol),
+  )
+  if (needsFallback) {
     try {
       quotes = mergeQuotes(quotes, await fetchTencentQuotes())
     } catch (error) {
