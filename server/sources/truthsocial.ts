@@ -38,7 +38,7 @@ export default defineSource(async () => {
     const originalTitle = item.title?.trim()
     const description = stripHTML(item.description)
     const isPlaceholder = !originalTitle || originalTitle.startsWith("[No Title]")
-    const isLinkOnly = Boolean(originalTitle && /^(?:RT:\s*)?https?:\/\//i.test(originalTitle))
+    const isLinkOnly = Boolean(originalTitle && /^(?:RT[:：]\s*)?https?:\/\//i.test(originalTitle))
     const title = isPlaceholder
       ? description || "Truth Social 帖子"
       : isLinkOnly

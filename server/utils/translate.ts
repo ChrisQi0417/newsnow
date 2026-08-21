@@ -67,9 +67,9 @@ async function translateWithLingva(texts: string[]): Promise<string[]> {
       const data = JSON.parse(await response.text())
       const rawValue = String(data?.translation ?? "")
       const lines = rawValue.split(/\r?\n+/).map(normalizeTitle).filter(Boolean)
-      if (lines.length === batch.length && lines.every((value, index) => value && value !== batch[index])) {
+      if (lines.length === batch.length && lines.every(Boolean)) {
         translated.push(...lines)
-        successes += batch.length
+        successes += lines.filter((value, index) => value !== batch[index]).length
       } else if (batch.length === 1 && lines[0] && lines[0] !== batch[0]) {
         translated.push(lines[0])
         successes += 1
