@@ -39,10 +39,10 @@ export default defineSource(async () => {
     const description = stripHTML(item.description)
     const isPlaceholder = !originalTitle || originalTitle.startsWith("[No Title]")
     const isLinkOnly = [description, originalTitle].some(value => /^(?:RT[:：]\s*)?https?:\/\//i.test(value ?? ""))
-    const title = isPlaceholder
-      ? description || "Truth Social 帖子"
-      : isLinkOnly
-        ? description || "转发内容"
+    const title = isLinkOnly
+      ? "转发内容"
+      : isPlaceholder
+        ? description || "Truth Social 帖子"
         : originalTitle
     const originalUrl = item["truth:originalUrl"]
     const mirrorUrl = item.link
