@@ -34,14 +34,9 @@ async function translateBatch(texts: string[]): Promise<string[]> {
   if (lines.length === texts.length) return lines
   if (texts.length === 1) return [normalizeTitle(translated)]
 
-  return Promise.all(texts.map(async (text) => {
-    try {
-      const [translated] = await translateBatch([text])
-      return translated || text
-    } catch {
-      return text
-    }
-  }))
+  // A malformed batch response must not fan out into one request per title.
+  // The caller can still display the original title and retry on the next refresh.
+  return texts
 }
 
 export async function translateTextsToChinese(texts: string[]): Promise<string[]> {
@@ -66,7 +61,7 @@ export async function translateTextsToChinese(texts: string[]): Promise<string[]
 }
 
 export async function translateNewsItemsToChinese(items: NewsItem[]): Promise<NewsItem[]> {
-  await translateTextsToChinese(items.map(item => String(item.title ?? "")))
+  await translateTextsToChinese(items.slice(0, 30).map(item => String(item.title ?? "")))
 
   return items.map((item) => {
     const originalTitle = normalizeTitle(String(item.title ?? ""))

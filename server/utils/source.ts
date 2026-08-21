@@ -12,7 +12,8 @@ export function defineSource(source: SourceGetter | R): SourceGetter | R {
 
 export function defineRSSSource(url: string, option?: SourceOption): SourceGetter {
   return async () => {
-    const data = await rss2json(url)
+    // The API exposes at most 30 items; avoid parsing and translating a full archive feed.
+    const data = await rss2json(url, Math.min(option?.limit ?? 30, 30))
     if (!data?.items.length) throw new Error("Cannot fetch rss data")
     const seen = new Set<string>()
     let items: NewsItem[] = data.items.flatMap((item) => {

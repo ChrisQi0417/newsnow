@@ -14,14 +14,25 @@ function link(value: any): string {
   return typeof value === "string" ? value : ""
 }
 
-export function parseRSSXML(data: string): RSSInfo | undefined {
+const entryPattern = /<(item|entry)\b[^>]*>[\s\S]*?<\/\1\s*>/gi
+const heavyFieldPattern = /<(description|summary|content(?::encoded)?|itunes:summary|media:group|podcast:transcript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi
+
+function limitRSSXML(data: string, limit: number) {
+  let count = 0
+  return data.replace(entryPattern, (entry) => {
+    if (count++ >= limit) return ""
+    return entry.replace(heavyFieldPattern, "")
+  })
+}
+
+export function parseRSSXML(data: string, limit?: number): RSSInfo | undefined {
   const xml = new XMLParser({
     attributeNamePrefix: "",
     textNodeName: "$text",
     ignoreAttributes: false,
   })
 
-  const result = xml.parse(data as string)
+  const result = xml.parse(limit === undefined ? data : limitRSSXML(data, limit))
 
   const rdf = result["rdf:RDF"]
   let channel = result.rss && result.rss.channel ? result.rss.channel : (result.feed ?? rdf?.channel)
@@ -91,11 +102,11 @@ export function parseRSSXML(data: string): RSSInfo | undefined {
   return rss
 }
 
-export async function rss2json(url: string): Promise<RSSInfo | undefined> {
+export async function rss2json(url: string, limit?: number): Promise<RSSInfo | undefined> {
   if (!/^https?:\/\/[^\s$.?#].\S*/i.test(url)) return
 
   const data = await myFetch<string>(url, {
     responseType: "text",
   })
-  return parseRSSXML(data)
+  return parseRSSXML(data, limit)
 }
