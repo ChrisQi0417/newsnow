@@ -3,6 +3,11 @@ import type { NewsItem } from "@shared/types"
 const translateCache = new Map<string, string>()
 const zhRegExp = /[\u3400-\u9FFF]/
 const latinRegExp = /[A-Z]/i
+let translationDiagnostic = "idle"
+
+export function getTranslationDiagnostic() {
+  return translationDiagnostic
+}
 
 function normalizeTitle(title: string) {
   return title.replace(/\s+/g, " ").trim()
@@ -19,6 +24,7 @@ function shouldTranslate(title: string) {
 
 async function translateBatch(texts: string[]): Promise<string[]> {
   let data: any
+  const diagnostics: string[] = []
   for (const endpoint of ["https://translate.google.com/translate_a/single", "https://translate.googleapis.com/translate_a/single"]) {
     const url = new URL(endpoint)
     url.searchParams.set("client", "gtx")
@@ -34,19 +40,33 @@ async function translateBatch(texts: string[]): Promise<string[]> {
           "User-Agent": "NewsNow translation",
         },
       })
-      if (!response.ok) continue
-      data = JSON.parse(await response.text())
-      if (readGoogleTranslateResponse(data)) break
+      if (!response.ok) {
+        diagnostics.push(`${new URL(endpoint).hostname}:${response.status}`)
+        continue
+      }
+      const raw = await response.text()
+      data = JSON.parse(raw)
+      const translated = readGoogleTranslateResponse(data)
+      if (translated) {
+        translationDiagnostic = `${new URL(endpoint).hostname}:ok:${raw.length}:${texts.length}`
+        break
+      }
+      diagnostics.push(`${new URL(endpoint).hostname}:empty:${raw.length}`)
     } catch {
+      diagnostics.push(`${new URL(endpoint).hostname}:error`)
       // Try the alternate Google endpoint before falling back to the source title.
     }
   }
 
   const translated = readGoogleTranslateResponse(data)
-  if (!translated) return texts
+  if (!translated) {
+    translationDiagnostic = diagnostics.join(",") || "no-response"
+    return texts
+  }
   const lines = translated.split(/\n+/).map(normalizeTitle).filter(Boolean)
   if (lines.length === texts.length) return lines
   if (texts.length === 1) return [normalizeTitle(translated)]
+  translationDiagnostic = `line-mismatch:${lines.length}/${texts.length}`
 
   // A malformed batch response must not fan out into one request per title.
   // The caller can still display the original title and retry on the next refresh.

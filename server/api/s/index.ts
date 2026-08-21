@@ -2,6 +2,7 @@ import type { SourceID, SourceResponse } from "@shared/types"
 import { getGetter, hasGetter, resolveSourceID } from "#/getters"
 import { getCacheTable } from "#/database/cache"
 import type { CacheInfo } from "#/types"
+import { getTranslationDiagnostic } from "#/utils/translate"
 
 export default defineEventHandler(async (event): Promise<SourceResponse> => {
   try {
@@ -51,6 +52,9 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
       const getter = await getGetter(id)
       if (!getter) throw new Error("Invalid source id")
       const newData = (await getter(event)).slice(0, 30)
+      if (query.debugTranslation !== undefined) {
+        setHeader(event, "X-NewsNow-Translation", getTranslationDiagnostic())
+      }
       if (cacheTable && newData.length) {
         if (event.context.waitUntil) event.context.waitUntil(cacheTable.set(id, newData))
         else await cacheTable.set(id, newData)
