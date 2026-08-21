@@ -5,7 +5,7 @@ import type { CacheInfo } from "#/types"
 
 export default defineEventHandler(async (event): Promise<SourceResponse> => {
   try {
-    setHeader(event, "X-NewsNow-Revision", "f357702")
+    setHeader(event, "X-NewsNow-Revision", "translation-retry-v1")
     const query = getQuery(event)
     const latest = query.latest !== undefined && query.latest !== "false"
     const requestedID = query.id as SourceID

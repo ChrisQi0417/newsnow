@@ -28,11 +28,14 @@ async function translateBatch(texts: string[]): Promise<string[]> {
     url.searchParams.set("q", texts.join("\n"))
 
     try {
-      const response = await fetch(url, {
-        headers: { Accept: "application/json" },
+      const response = await fetch(url.toString(), {
+        headers: {
+          "Accept": "application/json,text/plain,*/*",
+          "User-Agent": "NewsNow translation",
+        },
       })
       if (!response.ok) continue
-      data = await response.json()
+      data = JSON.parse(await response.text())
       if (readGoogleTranslateResponse(data)) break
     } catch {
       // Try the alternate Google endpoint before falling back to the source title.
@@ -74,11 +77,18 @@ export async function translateTextsToChinese(texts: string[]): Promise<string[]
     try {
       const translated = await translateBatch(batch)
       batch.forEach((text, index) => {
-        translateCache.set(text, translated[index] || text)
+        const translatedTitle = normalizeTitle(String(translated[index] ?? ""))
+        if (translatedTitle && translatedTitle !== text) {
+          translateCache.set(text, translatedTitle)
+        } else {
+          // Do not pin a failed translation to the original English title.
+          // A later refresh should be able to retry after the provider recovers.
+          translateCache.delete(text)
+        }
       })
     } catch (e) {
       logger.warn("failed to translate texts", e)
-      batch.forEach(text => translateCache.set(text, text))
+      batch.forEach(text => translateCache.delete(text))
     }
   }
 
