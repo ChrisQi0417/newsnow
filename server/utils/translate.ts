@@ -25,9 +25,11 @@ async function translateBatch(texts: string[]): Promise<string[]> {
   url.searchParams.set("dt", "t")
   url.searchParams.set("q", texts.join("\n"))
 
-  const data = await myFetch<any>(url, {
-    responseType: "json",
+  const response = await fetch(url, {
+    headers: { Accept: "application/json" },
   })
+  if (!response.ok) throw new Error(`translation service returned ${response.status}`)
+  const data = await response.json()
   const translated = readGoogleTranslateResponse(data)
   if (!translated) return texts
   const lines = translated.split(/\n+/).map(normalizeTitle).filter(Boolean)
