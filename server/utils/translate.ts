@@ -31,6 +31,41 @@ function decodeMyMemoryText(value: string) {
     .replace(/&gt;/g, ">")
 }
 
+async function translateWithLingva(texts: string[]): Promise<string[]> {
+  const translated: string[] = []
+  let successes = 0
+
+  for (const text of texts) {
+    const url = `https://lingva.dialectapp.org/api/v1/en/zh/${encodeURIComponent(text)}`
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          "Accept": "application/json",
+          "User-Agent": "NewsNow translation",
+        },
+      })
+      if (!response.ok) {
+        translated.push(text)
+        continue
+      }
+      const data = JSON.parse(await response.text())
+      const value = normalizeTitle(String(data?.translation ?? ""))
+      if (value && value !== text) {
+        translated.push(value)
+        successes += 1
+      } else {
+        translated.push(text)
+      }
+    } catch {
+      translated.push(text)
+    }
+  }
+
+  translationDiagnostic = `lingva:${successes}/${texts.length}`
+  return translated
+}
+
 async function translateWithMyMemory(texts: string[]): Promise<string[]> {
   const translated: string[] = []
   let successes = 0
@@ -111,15 +146,19 @@ async function translateBatch(texts: string[]): Promise<string[]> {
 
   const translated = readGoogleTranslateResponse(data)
   if (!translated) {
-    translationDiagnostic = `${diagnostics.join(",") || "no-response"};fallback`
+    translationDiagnostic = `${diagnostics.join(",") || "no-response"};lingva`
+    const lingva = await translateWithLingva(texts)
+    if (lingva.some((value, index) => value !== texts[index])) return lingva
     return translateWithMyMemory(texts)
   }
   const lines = translated.split(/\n+/).map(normalizeTitle).filter(Boolean)
   if (lines.length === texts.length) return lines
   if (texts.length === 1) return [normalizeTitle(translated)]
-  translationDiagnostic = `line-mismatch:${lines.length}/${texts.length};fallback`
+  translationDiagnostic = `line-mismatch:${lines.length}/${texts.length};lingva`
 
   // Handle a malformed batch response title by title with a fallback provider.
+  const lingva = await translateWithLingva(texts)
+  if (lingva.some((value, index) => value !== texts[index])) return lingva
   return translateWithMyMemory(texts)
 }
 
