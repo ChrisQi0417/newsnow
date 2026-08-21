@@ -37,7 +37,13 @@ export default defineSource(async () => {
   const news: NewsItem[] = items.slice(0, 50).map((item) => {
     const originalTitle = item.title?.trim()
     const description = stripHTML(item.description)
-    const title = originalTitle && !originalTitle.startsWith("[No Title]") ? originalTitle : description || originalTitle || "Truth Social post"
+    const isPlaceholder = !originalTitle || originalTitle.startsWith("[No Title]")
+    const isLinkOnly = Boolean(originalTitle && /^(?:RT:\s*)?https?:\/\//i.test(originalTitle))
+    const title = isPlaceholder
+      ? description || "Truth Social 帖子"
+      : isLinkOnly
+        ? description || "转发内容"
+        : originalTitle
     const originalUrl = item["truth:originalUrl"]
     const mirrorUrl = item.link
 

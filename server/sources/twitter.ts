@@ -1,5 +1,6 @@
 import { load } from "cheerio"
 import type { NewsItem } from "@shared/types"
+import { translateNewsItemsToChinese } from "../utils/translate"
 
 export interface XAccount {
   displayName: string
@@ -200,5 +201,5 @@ export default defineSource(async () => {
 
   const items = curateFixedXPosts(results.flat())
   if (!items.length) throw new Error("Cannot fetch Tibo or OpenAI X posts")
-  return items
+  return translateNewsItemsToChinese(items)
 })
