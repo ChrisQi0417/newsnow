@@ -71,7 +71,12 @@ async function translateWithMyMemory(texts: string[]): Promise<string[]> {
 async function translateBatch(texts: string[]): Promise<string[]> {
   let data: any
   const diagnostics: string[] = []
-  for (const endpoint of ["https://translate.google.com/translate_a/single", "https://translate.googleapis.com/translate_a/single"]) {
+  for (const endpoint of [
+    "https://translate.google.com/translate_a/single",
+    "https://translate.googleapis.com/translate_a/single",
+    "https://translate.google.co.uk/translate_a/single",
+    "https://translate.google.de/translate_a/single",
+  ]) {
     const url = new URL(endpoint)
     url.searchParams.set("client", "gtx")
     url.searchParams.set("sl", "auto")
