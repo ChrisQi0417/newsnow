@@ -1,5 +1,6 @@
 import type { PrimitiveAtom } from "jotai"
 import type { FixedColumnID, PrimitiveMetadata, SourceID } from "@shared/types"
+import { orderSourcesByDefaultOrder } from "@shared/metadata"
 import type { Update } from "./types"
 
 function createPrimitiveMetadataAtom(
@@ -56,6 +57,9 @@ export function preprocessMetadata(target: PrimitiveMetadata) {
   }
   if ((target.schemaVersion ?? 0) < 2) {
     data.realtime = placeSourceAfter(data.realtime, "github", "fed")
+  }
+  if ((target.schemaVersion ?? 0) < 3) {
+    data.realtime = orderSourcesByDefaultOrder(data.realtime, initialMetadata.realtime)
   }
 
   return {

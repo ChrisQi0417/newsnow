@@ -28,7 +28,7 @@ export const columns = {
 
 export const fixedColumnIds = ["focus", "hottest", "realtime"] as const satisfies Partial<ColumnID>[]
 export const hiddenColumns = Object.keys(columns).filter(id => !fixedColumnIds.includes(id as any)) as HiddenColumnID[]
-export const metadataSchemaVersion = 2
+export const metadataSchemaVersion = 3
 
 export function placeSourceAfter<T extends string>(items: T[], source: T, predecessor: T) {
   if (!items.includes(source)) return items
@@ -62,6 +62,64 @@ export function mergeNewSourcesByDefaultOrder<T extends string>(stored: T[], def
 
   return merged
 }
+
+export function orderSourcesByDefaultOrder<T extends string>(items: T[], defaults: readonly T[]) {
+  const available = new Set(items)
+  return defaults.filter(id => available.has(id))
+}
+
+// Product modules first, followed by international sources by influence and China-focused sources last.
+export const realtimeSourcePriority = [
+  "weather",
+  "markets",
+  "truthsocial",
+  "github",
+  "twitter",
+  "ai",
+  "apple",
+  "fed",
+  "reuters",
+  "apnews-top",
+  "apnews-world",
+  "apnews-business",
+  "apnews-fact-check",
+  "afp",
+  "bbcnews-world",
+  "bbcnews-worldservice",
+  "bbc",
+  "bloomberg-business",
+  "bloomberg-markets",
+  "bloomberg-economics",
+  "bloomberg-politics",
+  "bloomberg-technology",
+  "ft",
+  "wsj-news",
+  "wsj-world",
+  "wsj-markets",
+  "economist",
+  "nikkei",
+  "unnews",
+  "france24",
+  "dw",
+  "nhk",
+  "rfi",
+  "pi",
+  "scmp-news",
+  "scmp-hongkong",
+  "scmp-china",
+  "xinhua-world",
+  "xinhua-business",
+  "xinhua-tech",
+  "xinhua-china",
+  "govcn",
+  "people-world",
+  "people-finance",
+  "people-politics",
+  "chinanews-world",
+  "chinanews-finance",
+  "chinanews-china",
+] as const satisfies readonly SourceID[]
+const realtimeSourcePrioritySet = new Set<SourceID>(realtimeSourcePriority)
 
 const reliableHottestSources = [
   "github",
@@ -107,11 +165,18 @@ export const metadata: Metadata = typeSafeObjectFromEntries(typeSafeObjectEntrie
           ...reliableHottestSources.filter(id => sources[id] && !sources[id].redirect),
         ])],
       }]
-    case "realtime":
+    case "realtime": {
+      const realtimeSources = typeSafeObjectEntries(sources)
+        .filter(([, v]) => v.type === "realtime" && !v.redirect)
+        .map(([k]) => k)
       return [k, {
         name: v.zh,
-        sources: typeSafeObjectEntries(sources).filter(([, v]) => v.type === "realtime" && !v.redirect).map(([k]) => k),
+        sources: [
+          ...orderSourcesByDefaultOrder(realtimeSources, realtimeSourcePriority),
+          ...realtimeSources.filter(id => !realtimeSourcePrioritySet.has(id)),
+        ],
       }]
+    }
     default:
       return [k, {
         name: v.zh,
