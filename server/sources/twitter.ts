@@ -96,9 +96,10 @@ function normalizePostUrl(value: string | undefined, account: XAccount) {
 }
 
 function createXPost(account: XAccount, title: string, url: string, pubDate?: number): NewsItem {
+  const displayTitle = /^https?:\/\/\S+$/i.test(title) ? `链接内容：${title}` : title
   return {
     id: url,
-    title,
+    title: displayTitle,
     url,
     pubDate,
     extra: {
