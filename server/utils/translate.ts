@@ -44,8 +44,22 @@ export async function translateTextsToChinese(texts: string[]): Promise<string[]
   const targets = normalizedTexts.filter(text => text && shouldTranslate(text))
   const uniqueTargets = [...new Set(targets)].filter(text => !translateCache.has(text))
 
-  for (let i = 0; i < uniqueTargets.length; i += 8) {
-    const batch = uniqueTargets.slice(i, i + 8)
+  const batches: string[][] = []
+  let batch: string[] = []
+  let batchLength = 0
+  for (const text of uniqueTargets) {
+    const nextLength = batchLength + text.length + (batch.length ? 1 : 0)
+    if (batch.length && (batch.length >= 20 || nextLength > 1600)) {
+      batches.push(batch)
+      batch = []
+      batchLength = 0
+    }
+    batch.push(text)
+    batchLength += text.length + (batch.length > 1 ? 1 : 0)
+  }
+  if (batch.length) batches.push(batch)
+
+  for (const batch of batches) {
     try {
       const translated = await translateBatch(batch)
       batch.forEach((text, index) => {
