@@ -32,11 +32,26 @@ function decodeMyMemoryText(value: string) {
 }
 
 async function translateWithLingva(texts: string[]): Promise<string[]> {
+  const batches: string[][] = []
+  let batch: string[] = []
+  let batchLength = 0
+  for (const text of texts) {
+    const nextLength = batchLength + text.length + (batch.length ? 1 : 0)
+    if (batch.length && (batch.length >= 10 || nextLength > 1400)) {
+      batches.push(batch)
+      batch = []
+      batchLength = 0
+    }
+    batch.push(text)
+    batchLength += text.length + (batch.length > 1 ? 1 : 0)
+  }
+  if (batch.length) batches.push(batch)
+
   const translated: string[] = []
   let successes = 0
 
-  for (const text of texts) {
-    const url = `https://lingva.dialectapp.org/api/v1/en/zh/${encodeURIComponent(text)}`
+  for (const batch of batches) {
+    const url = `https://lingva.dialectapp.org/api/v1/en/zh/${encodeURIComponent(batch.join("\n"))}`
 
     try {
       const response = await fetch(url, {
@@ -46,19 +61,23 @@ async function translateWithLingva(texts: string[]): Promise<string[]> {
         },
       })
       if (!response.ok) {
-        translated.push(text)
+        translated.push(...batch)
         continue
       }
       const data = JSON.parse(await response.text())
-      const value = normalizeTitle(String(data?.translation ?? ""))
-      if (value && value !== text) {
-        translated.push(value)
+      const rawValue = String(data?.translation ?? "")
+      const lines = rawValue.split(/\r?\n+/).map(normalizeTitle).filter(Boolean)
+      if (lines.length === batch.length && lines.every((value, index) => value && value !== batch[index])) {
+        translated.push(...lines)
+        successes += batch.length
+      } else if (batch.length === 1 && lines[0] && lines[0] !== batch[0]) {
+        translated.push(lines[0])
         successes += 1
       } else {
-        translated.push(text)
+        translated.push(...batch)
       }
     } catch {
-      translated.push(text)
+      translated.push(...batch)
     }
   }
 
@@ -101,6 +120,19 @@ async function translateWithMyMemory(texts: string[]): Promise<string[]> {
 
   translationDiagnostic = `mymemory:${successes}/${texts.length}`
   return translated
+}
+
+async function translateWithFallback(texts: string[]) {
+  const lingva = await translateWithLingva(texts)
+  const unresolvedIndexes = lingva.flatMap((value, index) => value === texts[index] ? [index] : [])
+  if (!unresolvedIndexes.length) return lingva
+
+  const fallback = await translateWithMyMemory(unresolvedIndexes.map(index => texts[index]))
+  let fallbackIndex = 0
+  return lingva.map((value, index) => {
+    if (value !== texts[index]) return value
+    return fallback[fallbackIndex++] ?? value
+  })
 }
 
 async function translateBatch(texts: string[]): Promise<string[]> {
@@ -147,9 +179,7 @@ async function translateBatch(texts: string[]): Promise<string[]> {
   const translated = readGoogleTranslateResponse(data)
   if (!translated) {
     translationDiagnostic = `${diagnostics.join(",") || "no-response"};lingva`
-    const lingva = await translateWithLingva(texts)
-    if (lingva.some((value, index) => value !== texts[index])) return lingva
-    return translateWithMyMemory(texts)
+    return translateWithFallback(texts)
   }
   const lines = translated.split(/\n+/).map(normalizeTitle).filter(Boolean)
   if (lines.length === texts.length) return lines
@@ -157,9 +187,7 @@ async function translateBatch(texts: string[]): Promise<string[]> {
   translationDiagnostic = `line-mismatch:${lines.length}/${texts.length};lingva`
 
   // Handle a malformed batch response title by title with a fallback provider.
-  const lingva = await translateWithLingva(texts)
-  if (lingva.some((value, index) => value !== texts[index])) return lingva
-  return translateWithMyMemory(texts)
+  return translateWithFallback(texts)
 }
 
 export async function translateTextsToChinese(texts: string[]): Promise<string[]> {
