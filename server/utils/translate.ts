@@ -18,18 +18,27 @@ function shouldTranslate(title: string) {
 }
 
 async function translateBatch(texts: string[]): Promise<string[]> {
-  const url = new URL("https://translate.googleapis.com/translate_a/single")
-  url.searchParams.set("client", "gtx")
-  url.searchParams.set("sl", "auto")
-  url.searchParams.set("tl", "zh-CN")
-  url.searchParams.set("dt", "t")
-  url.searchParams.set("q", texts.join("\n"))
+  let data: any
+  for (const endpoint of ["https://translate.google.com/translate_a/single", "https://translate.googleapis.com/translate_a/single"]) {
+    const url = new URL(endpoint)
+    url.searchParams.set("client", "gtx")
+    url.searchParams.set("sl", "auto")
+    url.searchParams.set("tl", "zh-CN")
+    url.searchParams.set("dt", "t")
+    url.searchParams.set("q", texts.join("\n"))
 
-  const response = await fetch(url, {
-    headers: { Accept: "application/json" },
-  })
-  if (!response.ok) throw new Error(`translation service returned ${response.status}`)
-  const data = await response.json()
+    try {
+      const response = await fetch(url, {
+        headers: { Accept: "application/json" },
+      })
+      if (!response.ok) continue
+      data = await response.json()
+      if (readGoogleTranslateResponse(data)) break
+    } catch {
+      // Try the alternate Google endpoint before falling back to the source title.
+    }
+  }
+
   const translated = readGoogleTranslateResponse(data)
   if (!translated) return texts
   const lines = translated.split(/\n+/).map(normalizeTitle).filter(Boolean)
