@@ -1,7 +1,19 @@
-import { describe, expect, it } from "vitest"
-import { parseTruthSocialFeed, reuseCachedTruthSocialTranslations } from "../server/sources/truthsocial"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { parseTruthSocialFeed, reuseCachedTruthSocialTranslations, translateTruthSocialItems } from "../server/sources/truthsocial"
+
+const { translateMock } = vi.hoisted(() => ({
+  translateMock: vi.fn(async (texts: string[]) => texts.map(text => `中文：${text}`)),
+}))
+
+vi.mock("../server/utils/translate", () => ({
+  translateTextsToChinese: translateMock,
+}))
 
 describe("truth Social refresh", () => {
+  beforeEach(() => {
+    translateMock.mockClear()
+  })
+
   it("parses posts and keeps repost placeholders out of translation", () => {
     const items = parseTruthSocialFeed(`
       <rss xmlns:truth="https://trumpstruth.org/ns"><channel>
@@ -72,5 +84,20 @@ describe("truth Social refresh", () => {
       },
       fresh[1],
     ])
+  })
+
+  it("translates cold posts in no more than three balanced requests", async () => {
+    const items = [900, 650, 250, 100, 80].map((length, index) => ({
+      id: String(index),
+      title: `${String.fromCharCode(65 + index)}${"x".repeat(length - 1)}`,
+      url: `https://truthsocial.com/${index}`,
+    }))
+
+    const translated = await translateTruthSocialItems(items)
+
+    expect(translateMock).toHaveBeenCalledTimes(3)
+    expect(translateMock.mock.calls.flatMap(([texts]) => texts)).toHaveLength(items.length)
+    expect(translated.every(item => String(item.title).startsWith("中文："))).toBe(true)
+    expect(translated.every(item => String(item.extra?.hover).startsWith("原文："))).toBe(true)
   })
 })

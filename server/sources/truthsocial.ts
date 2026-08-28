@@ -1,6 +1,20 @@
 import { XMLParser } from "fast-xml-parser"
 import type { NewsItem } from "@shared/types"
-import { translateNewsItemsToChinese } from "../utils/translate"
+import { translateTextsToChinese } from "../utils/translate"
+
+const persistentCacheUrl = "https://newsnow-1nq.pages.dev/__internal-cache/truthsocial-translations-v1"
+const zhRegExp = /[\u3400-\u9FFF]/
+const latinRegExp = /[A-Z]/i
+
+interface RuntimeCache {
+  match: (request: Request) => Promise<Response | undefined>
+  put: (request: Request, response: Response) => Promise<void>
+}
+
+interface TranslationTarget {
+  indexes: number[]
+  text: string
+}
 
 interface TruthSocialRSSItem {
   "title"?: string
@@ -34,6 +48,41 @@ function cachedOriginalTitle(item: NewsItem) {
   const hover = typeof item.extra?.hover === "string" ? item.extra.hover : ""
   if (!hover.startsWith("原文：")) return ""
   return normalizeTitle(hover.slice(3).split("\n")[0])
+}
+
+function getRuntimeCache() {
+  const runtimeCaches = (globalThis as unknown as { caches?: { default?: RuntimeCache } }).caches
+  return runtimeCaches?.default
+}
+
+async function readPersistentTranslations() {
+  const cache = getRuntimeCache()
+  if (!cache) return []
+
+  try {
+    const response = await cache.match(new Request(persistentCacheUrl))
+    if (!response?.ok) return []
+    const items = await response.json()
+    return Array.isArray(items) ? items as NewsItem[] : []
+  } catch {
+    return []
+  }
+}
+
+async function writePersistentTranslations(items: NewsItem[]) {
+  const cache = getRuntimeCache()
+  if (!cache || !items.length) return
+
+  try {
+    await cache.put(new Request(persistentCacheUrl), new Response(JSON.stringify(items.slice(0, 30)), {
+      headers: {
+        "Cache-Control": "public, max-age=604800",
+        "Content-Type": "application/json; charset=utf-8",
+      },
+    }))
+  } catch {
+    // Translation remains available for this response even if edge persistence is unavailable.
+  }
 }
 
 export function parseTruthSocialFeed(raw: string): NewsItem[] {
@@ -72,7 +121,7 @@ export function reuseCachedTruthSocialTranslations(freshItems: NewsItem[], cache
   return freshItems.map((item) => {
     const cached = cachedById.get(String(item.id))
     const originalTitle = normalizeTitle(item.title)
-    if (!cached || !/[\u3400-\u9FFF]/.test(String(cached.title ?? ""))) return item
+    if (!cached || !zhRegExp.test(String(cached.title ?? ""))) return item
     if (cachedOriginalTitle(cached) !== originalTitle) return item
 
     return {
@@ -86,17 +135,68 @@ export function reuseCachedTruthSocialTranslations(freshItems: NewsItem[], cache
   })
 }
 
-export default defineSource(async (event) => {
-  const raw = await myFetch<string, "text">("https://trumpstruth.org/feed", {
-    responseType: "text",
-    retry: 1,
-    timeout: 6000,
+export async function translateTruthSocialItems(items: NewsItem[]) {
+  const targetsByText = new Map<string, TranslationTarget>()
+  items.slice(0, 30).forEach((item, index) => {
+    const text = normalizeTitle(item.title)
+    if (!text || !latinRegExp.test(text) || zhRegExp.test(text)) return
+    const target = targetsByText.get(text)
+    if (target) target.indexes.push(index)
+    else targetsByText.set(text, { indexes: [index], text })
   })
-  const freshItems = parseTruthSocialFeed(raw)
-  const cachedItems = Array.isArray(event?.context.truthSocialCachedItems)
-    ? event.context.truthSocialCachedItems as NewsItem[]
-    : []
-  const news = reuseCachedTruthSocialTranslations(freshItems, cachedItems)
 
-  return translateNewsItemsToChinese(news)
+  const targets = [...targetsByText.values()]
+  if (!targets.length) return items
+
+  const groups = Array.from({ length: Math.min(3, targets.length) }, () => ({ length: 0, targets: [] as TranslationTarget[] }))
+  targets
+    .sort((a, b) => b.text.length - a.text.length)
+    .forEach((target) => {
+      const group = groups.reduce((shortest, candidate) => candidate.length < shortest.length ? candidate : shortest)
+      group.targets.push(target)
+      group.length += target.text.length
+    })
+
+  const translatedByIndex = new Map<number, string>()
+  await Promise.all(groups.map(async (group) => {
+    const translated = await translateTextsToChinese(group.targets.map(target => target.text))
+    group.targets.forEach((target, targetIndex) => {
+      const value = normalizeTitle(translated[targetIndex])
+      if (!value || value === target.text) return
+      target.indexes.forEach(index => translatedByIndex.set(index, value))
+    })
+  }))
+
+  return items.map((item, index) => {
+    const translatedTitle = translatedByIndex.get(index)
+    if (!translatedTitle) return item
+    const originalTitle = normalizeTitle(item.title)
+    return {
+      ...item,
+      title: translatedTitle,
+      extra: {
+        ...item.extra,
+        hover: item.extra?.hover ? `原文：${originalTitle}\n${item.extra.hover}` : `原文：${originalTitle}`,
+      },
+    }
+  })
+}
+
+export default defineSource(async (event) => {
+  const [raw, cachedItems] = await Promise.all([
+    myFetch<string, "text">("https://trumpstruth.org/feed", {
+      responseType: "text",
+      retry: 1,
+      timeout: 6000,
+    }),
+    readPersistentTranslations(),
+  ])
+  const freshItems = parseTruthSocialFeed(raw)
+  const news = reuseCachedTruthSocialTranslations(freshItems, cachedItems)
+  const translated = await translateTruthSocialItems(news)
+  const persist = writePersistentTranslations(translated)
+  if (event?.context.waitUntil) event.context.waitUntil(persist)
+  else await persist
+
+  return translated
 })
