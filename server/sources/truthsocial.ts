@@ -62,5 +62,5 @@ export default defineSource(async () => {
     retry: 1,
     timeout: 6000,
   })
-  return translateNewsItemsToChinese(parseTruthSocialFeed(raw))
+  return translateNewsItemsToChinese(parseTruthSocialFeed(raw), "truthsocial")
 })

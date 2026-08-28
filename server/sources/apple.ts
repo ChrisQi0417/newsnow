@@ -327,7 +327,7 @@ export default defineSource(async () => {
   }
   if (!items.length) throw new Error("Cannot fetch Apple News Today episodes")
 
-  const translated = await translateNewsItemsToChinese(items)
+  const translated = await translateNewsItemsToChinese(items, "apple")
   return translated.map((item, index) => ({
     ...item,
     title: restoreAppleNewsProperNames(String(items[index].title), String(item.title)),

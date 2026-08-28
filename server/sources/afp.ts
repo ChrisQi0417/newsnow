@@ -116,7 +116,7 @@ export default defineSource(async (event) => {
     })
     const items = parseAfpNewsHub(html)
     if (items.length) {
-      return translateNewsItemsToChinese(items)
+      return translateNewsItemsToChinese(items, "afp")
     }
   } catch (error) {
     logger.warn("failed to fetch AFP News Hub", error)
@@ -130,7 +130,7 @@ export default defineSource(async (event) => {
     })
     const items = parseAfpFactCheckReader(raw)
     if (items.length) {
-      return translateNewsItemsToChinese(items)
+      return translateNewsItemsToChinese(items, "afp")
     }
   } catch (error) {
     logger.warn("failed to fetch AFP Fact Check", error)

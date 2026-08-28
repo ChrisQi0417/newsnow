@@ -479,7 +479,7 @@ export default defineSource(async () => {
 
   const items = curatePiNews([...officialItems, ...mediaItems])
   if (!items.length) throw new Error("Cannot fetch Pi Network news")
-  const translated = await translateNewsItemsToChinese(items)
+  const translated = await translateNewsItemsToChinese(items, "pi")
   return translated.map((item, index) => ({
     ...item,
     title: restorePiProperNames(String(items[index].title), String(item.title)),

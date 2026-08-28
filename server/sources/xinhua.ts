@@ -56,7 +56,7 @@ function defineXinhuaSource(url: string) {
       .sort((a, b) => Number(b.pubDate ?? 0) - Number(a.pubDate ?? 0))
       .slice(0, 50)
     if (!sortedItems.length) throw new Error("Cannot fetch Xinhua latest news")
-    return translateNewsItemsToChinese(sortedItems)
+    return translateNewsItemsToChinese(sortedItems, `xinhua:${url}`)
   })
 }
 

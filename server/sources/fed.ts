@@ -171,7 +171,7 @@ export default defineSource(async () => {
     }
   }))
   const news = curateFedNews(feedResults.flat())
-  const translatedNews = await translateNewsItemsToChinese(news)
+  const translatedNews = await translateNewsItemsToChinese(news, "fed")
   const items = [...rateItems, ...translatedNews]
   if (!items.length) throw new Error("Cannot fetch Federal Reserve data")
   return items

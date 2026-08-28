@@ -252,7 +252,7 @@ export default defineSource(async () => {
 
   const items = curateLatestAIItems(results.flat())
   if (!items.length) throw new Error("Cannot fetch US AI news")
-  const translated = await translateNewsItemsToChinese(items)
+  const translated = await translateNewsItemsToChinese(items, "ai")
   return translated.map((item, index) => ({
     ...item,
     title: restoreAIProperNames(String(items[index].title), String(item.title)),

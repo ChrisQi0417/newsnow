@@ -11,14 +11,14 @@ describe("shared translation acceleration", () => {
     const translation = "持久译文缓存标题甲"
     const runtimeCache = {
       delete: vi.fn(),
-      match: vi.fn(async () => new Response(JSON.stringify({ source, translation }))),
+      match: vi.fn(async () => new Response(JSON.stringify({ entries: [{ source, translation }] }))),
       put: vi.fn(),
     }
     const fetchMock = vi.fn()
     vi.stubGlobal("caches", { default: runtimeCache })
     vi.stubGlobal("fetch", fetchMock)
 
-    await expect(translateTextsToChinese([source])).resolves.toEqual([translation])
+    await expect(translateTextsToChinese([source], "test-persistent-hit")).resolves.toEqual([translation])
     expect(runtimeCache.match).toHaveBeenCalledOnce()
     expect(fetchMock).not.toHaveBeenCalled()
   })
@@ -43,11 +43,12 @@ describe("shared translation acceleration", () => {
     vi.stubGlobal("caches", { default: runtimeCache })
     vi.stubGlobal("fetch", fetchMock)
 
-    const translated = await translateTextsToChinese(sources)
+    const translated = await translateTextsToChinese(sources, "test-concurrency")
 
     expect(fetchMock).toHaveBeenCalledTimes(sources.length)
     expect(maxActive).toBe(3)
     expect(translated.every(title => title.startsWith("中文："))).toBe(true)
-    expect(runtimeCache.put).toHaveBeenCalledTimes(sources.length)
+    expect(runtimeCache.match).toHaveBeenCalledOnce()
+    expect(runtimeCache.put).toHaveBeenCalledOnce()
   })
 })

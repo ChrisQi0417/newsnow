@@ -78,7 +78,7 @@ export default defineSource(async (event) => {
     const unique = [...new Map(items.map(item => [item.id, item])).values()]
       .sort((a, b) => Number(b.pubDate) - Number(a.pubDate))
       .slice(0, 50)
-    if (unique.length) return translateNewsItemsToChinese(unique)
+    if (unique.length) return translateNewsItemsToChinese(unique, "nikkei")
   } catch (error) {
     logger.warn("failed to fetch Nikkei news sitemaps", error)
   }

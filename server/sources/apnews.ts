@@ -113,7 +113,7 @@ function defineAPNewsSource(url: string) {
     })
 
     if (!items.length) throw new Error("Cannot fetch AP News page")
-    return translateNewsItemsToChinese(items)
+    return translateNewsItemsToChinese(items, `apnews:${url}`)
   })
 }
 

@@ -3,8 +3,9 @@ import type { NewsItem } from "@shared/types"
 const translateCache = new Map<string, string>()
 const zhRegExp = /[\u3400-\u9FFF]/
 const latinRegExp = /[A-Z]/i
-const persistentCacheBaseUrl = "https://newsnow-1nq.pages.dev/__internal-cache/translations-v1"
+const persistentCacheBaseUrl = "https://newsnow-1nq.pages.dev/__internal-cache/translations-v2"
 const persistentCacheMaxAge = 7 * 24 * 60 * 60
+const persistentCacheEntryLimit = 300
 
 interface RuntimeCache {
   match: (request: Request) => Promise<Response | undefined>
@@ -34,47 +35,49 @@ function getRuntimeCache() {
   return runtimeCaches?.default
 }
 
-function getPersistentCacheRequest(source: string) {
-  const url = new URL(persistentCacheBaseUrl)
-  url.searchParams.set("source", source)
-  return new Request(url)
+function getPersistentCacheRequest(namespace: string) {
+  return new Request(`${persistentCacheBaseUrl}/${encodeURIComponent(namespace)}`)
 }
 
-async function readPersistentTranslations(texts: string[]) {
+async function readPersistentTranslations(texts: string[], namespace?: string) {
+  const entries = new Map<string, string>()
   const cache = getRuntimeCache()
-  if (!cache || !texts.length) return
+  if (!cache || !texts.length || !namespace) return entries
 
-  await Promise.all(texts.map(async (text) => {
-    try {
-      const response = await cache.match(getPersistentCacheRequest(text))
-      if (!response?.ok) return
-      const data = await response.json() as Partial<PersistentTranslation>
-      const translation = normalizeTitle(String(data.translation ?? ""))
-      if (data.source === text && translation && translation !== text && zhRegExp.test(translation)) {
-        translateCache.set(text, translation)
-      }
-    } catch {
-      // A cache miss or malformed entry should fall through to live translation.
+  try {
+    const response = await cache.match(getPersistentCacheRequest(namespace))
+    if (!response?.ok) return entries
+    const data = await response.json() as { entries?: PersistentTranslation[] }
+    const targets = new Set(texts)
+    for (const entry of Array.isArray(data.entries) ? data.entries : []) {
+      const source = normalizeTitle(String(entry.source ?? ""))
+      const translation = normalizeTitle(String(entry.translation ?? ""))
+      if (!source || !translation || source === translation || !zhRegExp.test(translation)) continue
+      entries.set(source, translation)
+      if (targets.has(source)) translateCache.set(source, translation)
     }
-  }))
+  } catch {
+    // A cache miss or malformed entry should fall through to live translation.
+  }
+
+  return entries
 }
 
-async function writePersistentTranslations(entries: PersistentTranslation[]) {
+async function writePersistentTranslations(namespace: string | undefined, entries: Map<string, string>) {
   const cache = getRuntimeCache()
-  if (!cache || !entries.length) return
+  if (!cache || !namespace || !entries.size) return
 
-  await Promise.all(entries.map(async ({ source, translation }) => {
-    try {
-      await cache.put(getPersistentCacheRequest(source), new Response(JSON.stringify({ source, translation }), {
-        headers: {
-          "Cache-Control": `public, max-age=${persistentCacheMaxAge}`,
-          "Content-Type": "application/json; charset=utf-8",
-        },
-      }))
-    } catch {
-      // The current response can still use the translation when edge persistence fails.
-    }
-  }))
+  const recentEntries = [...entries.entries()].slice(-persistentCacheEntryLimit).map(([source, translation]) => ({ source, translation }))
+  try {
+    await cache.put(getPersistentCacheRequest(namespace), new Response(JSON.stringify({ entries: recentEntries }), {
+      headers: {
+        "Cache-Control": `public, max-age=${persistentCacheMaxAge}`,
+        "Content-Type": "application/json; charset=utf-8",
+      },
+    }))
+  } catch {
+    // The current response can still use the translation when edge persistence fails.
+  }
 }
 
 function decodeMyMemoryText(value: string) {
@@ -231,12 +234,15 @@ async function translateBatch(texts: string[]): Promise<string[]> {
   return translateWithFallback(texts)
 }
 
-export async function translateTextsToChinese(texts: string[]): Promise<string[]> {
+export async function translateTextsToChinese(texts: string[], persistentCacheNamespace?: string): Promise<string[]> {
   const normalizedTexts = texts.map(text => normalizeTitle(String(text ?? "")))
   const targets = normalizedTexts.filter(text => text && shouldTranslate(text))
   const uniqueTargets = [...new Set(targets)]
 
-  await readPersistentTranslations(uniqueTargets.filter(text => !translateCache.has(text)))
+  const persistentEntries = await readPersistentTranslations(
+    uniqueTargets.filter(text => !translateCache.has(text)),
+    persistentCacheNamespace,
+  )
   const pendingTargets = uniqueTargets.filter(text => !translateCache.has(text))
 
   const batches: string[][] = []
@@ -254,7 +260,7 @@ export async function translateTextsToChinese(texts: string[]): Promise<string[]
   }
   if (batch.length) batches.push(batch)
 
-  const persistentEntries: PersistentTranslation[] = []
+  let persistentCacheChanged = false
   let nextBatchIndex = 0
   const workers = Array.from({ length: Math.min(3, batches.length) }, async () => {
     while (nextBatchIndex < batches.length) {
@@ -266,7 +272,9 @@ export async function translateTextsToChinese(texts: string[]): Promise<string[]
           if (translatedTitle && translatedTitle !== text) {
             translateCache.set(text, translatedTitle)
             if (zhRegExp.test(translatedTitle)) {
-              persistentEntries.push({ source: text, translation: translatedTitle })
+              persistentEntries.delete(text)
+              persistentEntries.set(text, translatedTitle)
+              persistentCacheChanged = true
             }
           } else {
             // Do not pin a failed translation to the original English title.
@@ -281,13 +289,15 @@ export async function translateTextsToChinese(texts: string[]): Promise<string[]
     }
   })
   await Promise.all(workers)
-  await writePersistentTranslations(persistentEntries)
+  if (persistentCacheChanged) {
+    await writePersistentTranslations(persistentCacheNamespace, persistentEntries)
+  }
 
   return normalizedTexts.map(text => translateCache.get(text) ?? text)
 }
 
-export async function translateNewsItemsToChinese(items: NewsItem[]): Promise<NewsItem[]> {
-  await translateTextsToChinese(items.slice(0, 30).map(item => String(item.title ?? "")))
+export async function translateNewsItemsToChinese(items: NewsItem[], persistentCacheNamespace?: string): Promise<NewsItem[]> {
+  await translateTextsToChinese(items.slice(0, 30).map(item => String(item.title ?? "")), persistentCacheNamespace)
 
   return items.map((item) => {
     const originalTitle = normalizeTitle(String(item.title ?? ""))

@@ -57,5 +57,5 @@ export default defineSource(async () => {
     })
   }
 
-  return translateNewsItemsToChinese(news.sort((a, b) => Number(b.pubDate) - Number(a.pubDate)).slice(0, 50))
+  return translateNewsItemsToChinese(news.sort((a, b) => Number(b.pubDate) - Number(a.pubDate)).slice(0, 50), "reuters")
 })

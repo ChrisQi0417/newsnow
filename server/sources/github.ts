@@ -88,7 +88,7 @@ export default defineSource(async () => {
 
   if (!repos.length) throw new Error("Cannot fetch GitHub trending repositories")
 
-  const translatedDescriptions = await translateTextsToChinese(repos.map(repo => repo.description))
+  const translatedDescriptions = await translateTextsToChinese(repos.map(repo => repo.description), "github")
   const items: NewsItem[] = repos.map((repo, index) => {
     const description = translatedDescriptions[index] || repo.description
     return {

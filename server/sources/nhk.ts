@@ -26,5 +26,5 @@ export default defineSource(async () => {
     },
   }))
 
-  return translateNewsItemsToChinese(items)
+  return translateNewsItemsToChinese(items, "nhk")
 })

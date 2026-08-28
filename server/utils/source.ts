@@ -29,7 +29,7 @@ export function defineRSSSource(url: string, option?: SourceOption): SourceGette
       }]
     })
     if (option?.limit) items = items.slice(0, option.limit)
-    return option?.translate ? translateNewsItemsToChinese(items) : items
+    return option?.translate ? translateNewsItemsToChinese(items, `rss:${url}`) : items
   }
 }
 
@@ -54,6 +54,6 @@ export function defineRSSHubSource(route: string, RSSHubOptions?: RSSHubOption, 
       pubDate: !sourceOption?.hiddenDate ? item.date_published : undefined,
     }))
     if (sourceOption?.limit) items = items.slice(0, sourceOption.limit)
-    return sourceOption?.translate ? translateNewsItemsToChinese(items) : items
+    return sourceOption?.translate ? translateNewsItemsToChinese(items, `rsshub:${route}`) : items
   }
 }
