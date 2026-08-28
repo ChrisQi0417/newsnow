@@ -2,6 +2,7 @@ import { XMLParser } from "fast-xml-parser"
 import type { NewsItem } from "@shared/types"
 import { translateTextsToChinese } from "../utils/translate"
 
+// The edge cache survives Worker instances in the same Cloudflare data center.
 const persistentCacheUrl = "https://newsnow-1nq.pages.dev/__internal-cache/truthsocial-translations-v1"
 const zhRegExp = /[\u3400-\u9FFF]/
 const latinRegExp = /[A-Z]/i
