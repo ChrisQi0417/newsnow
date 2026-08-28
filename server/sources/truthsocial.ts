@@ -26,15 +26,22 @@ function stripHTML(html = "") {
     .trim()
 }
 
-export default defineSource(async () => {
-  const raw = await myFetch<string>("https://trumpstruth.org/feed", {
-    responseType: "text",
-  })
+function normalizeTitle(title: unknown) {
+  return String(title ?? "").replace(/\s+/g, " ").trim()
+}
+
+function cachedOriginalTitle(item: NewsItem) {
+  const hover = typeof item.extra?.hover === "string" ? item.extra.hover : ""
+  if (!hover.startsWith("原文：")) return ""
+  return normalizeTitle(hover.slice(3).split("\n")[0])
+}
+
+export function parseTruthSocialFeed(raw: string): NewsItem[] {
   const parser = new XMLParser({
     ignoreAttributes: false,
   })
   const items = asArray<TruthSocialRSSItem>(parser.parse(raw)?.rss?.channel?.item)
-  const news: NewsItem[] = items.slice(0, 50).map((item) => {
+  return items.slice(0, 50).map((item) => {
     const originalTitle = item.title?.trim()
     const description = stripHTML(item.description)
     const isPlaceholder = !originalTitle || originalTitle.startsWith("[No Title]")
@@ -57,6 +64,39 @@ export default defineSource(async () => {
       },
     }
   })
+}
+
+export function reuseCachedTruthSocialTranslations(freshItems: NewsItem[], cachedItems: NewsItem[]) {
+  const cachedById = new Map(cachedItems.map(item => [String(item.id), item]))
+
+  return freshItems.map((item) => {
+    const cached = cachedById.get(String(item.id))
+    const originalTitle = normalizeTitle(item.title)
+    if (!cached || !/[\u3400-\u9FFF]/.test(String(cached.title ?? ""))) return item
+    if (cachedOriginalTitle(cached) !== originalTitle) return item
+
+    return {
+      ...item,
+      title: cached.title,
+      extra: {
+        ...item.extra,
+        hover: item.extra?.hover ? `原文：${originalTitle}\n${item.extra.hover}` : `原文：${originalTitle}`,
+      },
+    }
+  })
+}
+
+export default defineSource(async (event) => {
+  const raw = await myFetch<string, "text">("https://trumpstruth.org/feed", {
+    responseType: "text",
+    retry: 1,
+    timeout: 6000,
+  })
+  const freshItems = parseTruthSocialFeed(raw)
+  const cachedItems = Array.isArray(event?.context.truthSocialCachedItems)
+    ? event.context.truthSocialCachedItems as NewsItem[]
+    : []
+  const news = reuseCachedTruthSocialTranslations(freshItems, cachedItems)
 
   return translateNewsItemsToChinese(news)
 })
