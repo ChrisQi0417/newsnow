@@ -5,6 +5,7 @@ import { useWindowSize } from "react-use"
 import { forwardRef, useImperativeHandle } from "react"
 import { OverlayScrollbar } from "../common/overlay-scrollbar"
 import { safeParseString } from "~/utils"
+import { withSourceRequestLimit } from "~/utils/data"
 
 export interface ItemsProps extends React.HTMLAttributes<HTMLDivElement> {
   id: SourceID
@@ -58,20 +59,19 @@ function NewsCard({ id, setHandleRef }: NewsCardProps) {
       const id = queryKey[1] as SourceID
       let url = `/s?id=${id}`
       const headers: Record<string, any> = {}
-      if (refetchSources.has(id)) {
+      const forceLatest = refetchSources.has(id)
+      if (forceLatest) {
         url = `/s?id=${id}&latest`
         const jwt = safeParseString(localStorage.getItem("jwt"))
         if (jwt) headers.Authorization = `Bearer ${jwt}`
-        refetchSources.delete(id)
       } else if (cacheSources.has(id)) {
         // wait animation
         await delay(200)
         return cacheSources.get(id)
       }
 
-      const response: SourceResponse = await myFetch(url, {
-        headers,
-      })
+      const response: SourceResponse = await withSourceRequestLimit(() => myFetch(url, { headers }))
+      if (forceLatest) refetchSources.delete(id)
 
       function diff() {
         try {
@@ -99,7 +99,8 @@ function NewsCard({ id, setHandleRef }: NewsCardProps) {
     refetchOnMount: false,
     refetchOnReconnect: false,
     refetchOnWindowFocus: false,
-    retry: false,
+    retry: 2,
+    retryDelay: attempt => 500 * (attempt + 1),
   })
 
   const { isFocused, toggleFocus } = useFocusWith(id)
