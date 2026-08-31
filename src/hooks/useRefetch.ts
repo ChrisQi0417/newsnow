@@ -1,5 +1,6 @@
 import type { SourceID } from "@shared/types"
 import { useUpdateQuery } from "./query"
+import { refetchSources, requestSourceRefresh } from "~/utils/data"
 
 export function useRefetch() {
   const { enableLogin, loggedIn, login } = useLogin()
@@ -18,8 +19,7 @@ export function useRefetch() {
         },
       })
     } else {
-      refetchSources.clear()
-      sources.forEach(id => refetchSources.add(id))
+      sources.forEach(id => requestSourceRefresh(id))
       updateQuery(...sources)
     }
   }, [loggedIn, toaster, login, enableLogin, updateQuery])

@@ -5,7 +5,7 @@ import { useWindowSize } from "react-use"
 import { forwardRef, useImperativeHandle } from "react"
 import { OverlayScrollbar } from "../common/overlay-scrollbar"
 import { safeParseString } from "~/utils"
-import { withSourceRequestLimit } from "~/utils/data"
+import { scheduleSourceAutoRefresh, withSourceRequestLimit } from "~/utils/data"
 
 export interface ItemsProps extends React.HTMLAttributes<HTMLDivElement> {
   id: SourceID
@@ -53,7 +53,7 @@ export const CardWrapper = forwardRef<HTMLElement, ItemsProps>(({ id, isDragging
 
 function NewsCard({ id, setHandleRef }: NewsCardProps) {
   const { refresh } = useRefetch()
-  const { data, isFetching, isError } = useQuery({
+  const { data, isFetching, isError, refetch } = useQuery({
     queryKey: ["source", id],
     queryFn: async ({ queryKey }) => {
       const id = queryKey[1] as SourceID
@@ -102,6 +102,30 @@ function NewsCard({ id, setHandleRef }: NewsCardProps) {
     retry: 2,
     retryDelay: attempt => 500 * (attempt + 1),
   })
+
+  const refreshLatest = useCallback(() => {
+    if (!data || isFetching || !scheduleSourceAutoRefresh(id)) return
+    void refetch()
+  }, [data, id, isFetching, refetch])
+
+  useEffect(() => {
+    refreshLatest()
+  }, [refreshLatest])
+
+  useEffect(() => {
+    const handleVisible = () => {
+      if (document.visibilityState === "visible") refreshLatest()
+    }
+
+    document.addEventListener("visibilitychange", handleVisible)
+    window.addEventListener("focus", handleVisible)
+    window.addEventListener("pageshow", handleVisible)
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisible)
+      window.removeEventListener("focus", handleVisible)
+      window.removeEventListener("pageshow", handleVisible)
+    }
+  }, [refreshLatest])
 
   const { isFocused, toggleFocus } = useFocusWith(id)
 
