@@ -5,7 +5,7 @@ import { useWindowSize } from "react-use"
 import { forwardRef, useImperativeHandle } from "react"
 import { OverlayScrollbar } from "../common/overlay-scrollbar"
 import { safeParseString } from "~/utils"
-import { scheduleSourceAutoRefresh, withSourceRequestLimit } from "~/utils/data"
+import { completeSourceRefresh, failSourceRefresh, scheduleSourceAutoRefresh, withSourceRequestLimit } from "~/utils/data"
 
 export interface ItemsProps extends React.HTMLAttributes<HTMLDivElement> {
   id: SourceID
@@ -71,7 +71,7 @@ function NewsCard({ id, setHandleRef }: NewsCardProps) {
       }
 
       const response: SourceResponse = await withSourceRequestLimit(() => myFetch(url, { headers }))
-      if (forceLatest) refetchSources.delete(id)
+      if (forceLatest) completeSourceRefresh(id)
 
       function diff() {
         try {
@@ -102,6 +102,10 @@ function NewsCard({ id, setHandleRef }: NewsCardProps) {
     retry: 2,
     retryDelay: attempt => 500 * (attempt + 1),
   })
+
+  useEffect(() => {
+    if (isError && !isFetching) failSourceRefresh(id)
+  }, [id, isError, isFetching])
 
   const refreshLatest = useCallback(() => {
     if (!data || isFetching || !scheduleSourceAutoRefresh(id)) return

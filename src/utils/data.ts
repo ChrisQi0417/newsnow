@@ -7,6 +7,8 @@ const sourceAutoRefreshInterval = 60 * 1000
 const sourceAutoRefreshTimes = new Map<SourceID, number>()
 
 export function scheduleSourceAutoRefresh(id: SourceID, now = Date.now()) {
+  if (refetchSources.has(id)) return false
+
   const lastRefresh = sourceAutoRefreshTimes.get(id)
   if (lastRefresh !== undefined && now - lastRefresh < sourceAutoRefreshInterval) return false
 
@@ -18,6 +20,15 @@ export function scheduleSourceAutoRefresh(id: SourceID, now = Date.now()) {
 export function requestSourceRefresh(id: SourceID, now = Date.now()) {
   sourceAutoRefreshTimes.set(id, now)
   refetchSources.add(id)
+}
+
+export function completeSourceRefresh(id: SourceID, now = Date.now()) {
+  sourceAutoRefreshTimes.set(id, now)
+  refetchSources.delete(id)
+}
+
+export function failSourceRefresh(id: SourceID) {
+  refetchSources.delete(id)
 }
 
 export function resetSourceRefreshState() {

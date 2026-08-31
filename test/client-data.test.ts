@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { refetchSources, requestSourceRefresh, resetSourceRefreshState, scheduleSourceAutoRefresh, withSourceRequestLimit } from "../src/utils/data"
+import { completeSourceRefresh, failSourceRefresh, refetchSources, requestSourceRefresh, resetSourceRefreshState, scheduleSourceAutoRefresh, withSourceRequestLimit } from "../src/utils/data"
 
 beforeEach(() => {
   resetSourceRefreshState()
@@ -13,12 +13,28 @@ describe("automatic source refresh", () => {
 
   it("deduplicates automatic refreshes for one minute", () => {
     expect(scheduleSourceAutoRefresh("weather", 1000)).toBe(true)
-    refetchSources.delete("weather")
+    completeSourceRefresh("weather", 1000)
 
     expect(scheduleSourceAutoRefresh("weather", 60_999)).toBe(false)
     expect(refetchSources.has("weather")).toBe(false)
     expect(scheduleSourceAutoRefresh("weather", 61_000)).toBe(true)
     expect(refetchSources.has("weather")).toBe(true)
+  })
+
+  it("does not duplicate a refresh that is still queued", () => {
+    expect(scheduleSourceAutoRefresh("weather", 1000)).toBe(true)
+    expect(scheduleSourceAutoRefresh("weather", 120_000)).toBe(false)
+
+    completeSourceRefresh("weather", 120_000)
+    expect(scheduleSourceAutoRefresh("weather", 179_999)).toBe(false)
+    expect(scheduleSourceAutoRefresh("weather", 180_000)).toBe(true)
+  })
+
+  it("allows a failed refresh to retry after the cooldown", () => {
+    expect(scheduleSourceAutoRefresh("weather", 1000)).toBe(true)
+    failSourceRefresh("weather")
+
+    expect(scheduleSourceAutoRefresh("weather", 61_000)).toBe(true)
   })
 
   it("keeps other queued refreshes when a manual refresh is requested", () => {
