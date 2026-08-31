@@ -34,6 +34,32 @@ interface EmbeddedTimelineData {
   }
 }
 
+interface TiboFeedTweet {
+  at?: string
+  declared_at?: string
+  id?: string
+  is_reply?: boolean
+  replying_to?: string | null
+  text?: string
+  url?: string
+}
+
+interface TiboFeedResponse {
+  profile?: {
+    handle?: string
+  }
+  source_scope?: string
+  stale?: boolean
+  tweets?: TiboFeedTweet[]
+  version?: number
+}
+
+interface XOEmbedResponse {
+  author_url?: string
+  html?: string
+  provider_name?: string
+}
+
 export const fixedXAccounts: readonly XAccount[] = [
   {
     displayName: "Tibo",
@@ -88,10 +114,23 @@ function normalizePostUrl(value: string | undefined, account: XAccount) {
   try {
     const url = new URL(value, `https://x.com/${account.handle}`)
     const match = url.pathname.match(/^\/([^/]+)\/status\/(\d+)\/?$/i)
-    if (url.protocol !== "https:" || url.hostname !== "x.com" || !match) return
+    if (url.protocol !== "https:" || !["x.com", "www.x.com", "twitter.com", "www.twitter.com"].includes(url.hostname) || !match) return
     if (!sameHandle(match[1], account)) return
     return `https://x.com/${account.handle}/status/${match[2]}`
   } catch {
+  }
+}
+
+function sameProfileUrl(value: string | undefined, account: XAccount) {
+  if (!value) return false
+  try {
+    const url = new URL(value)
+    const match = url.pathname.match(/^\/([^/]+)\/?$/)
+    return url.protocol === "https:"
+      && ["x.com", "www.x.com", "twitter.com", "www.twitter.com"].includes(url.hostname)
+      && Boolean(match && sameHandle(match[1], account))
+  } catch {
+    return false
   }
 }
 
@@ -165,21 +204,87 @@ export function parseXEmbeddedProfile(html: string, account: XAccount) {
   return curateFixedXPosts(items)
 }
 
-async function fetchAccountPosts(account: XAccount) {
-  const profileUrl = `https://x.com/${account.handle}`
-  try {
-    const html = await myFetch<string>(profileUrl, {
-      responseType: "text",
-      headers: browserHeaders,
-      retry: 1,
-      timeout: 8000,
-    })
-    const items = parseXProfilePage(html, account)
-    if (items.length) return items
-  } catch (error) {
-    logger.warn(`failed to fetch X profile @${account.handle}`, error)
+export function parseTiboFeedCandidates(data: unknown, account: XAccount, limit = 10) {
+  const feed = data as TiboFeedResponse
+  if (account.handle !== "thsottiaux"
+    || feed?.version !== 1
+    || feed.source_scope !== "timeline"
+    || feed.stale !== false
+    || !sameHandle(feed.profile?.handle, account)
+    || !Array.isArray(feed.tweets)) {
+    return []
   }
 
+  const items = feed.tweets.flatMap((tweet): NewsItem[] => {
+    const id = String(tweet.id ?? "")
+    const title = normalizeText(String(tweet.text ?? ""))
+    const url = normalizePostUrl(tweet.url, account)
+    const isOwnThread = !tweet.is_reply || sameHandle(tweet.replying_to ?? undefined, account)
+    const pubDate = toTimestamp(tweet.at ?? tweet.declared_at)
+    if (!/^\d+$/.test(id) || !title || !url || !url.endsWith(`/status/${id}`) || !isOwnThread || !pubDate) return []
+    return [createXPost(account, title, url, pubDate)]
+  })
+
+  return curateFixedXPosts(items, limit)
+}
+
+export function parseXOEmbedPost(data: XOEmbedResponse, account: XAccount, candidate?: NewsItem) {
+  if (!/^(?:X|Twitter)$/i.test(String(data?.provider_name ?? "")) || !sameProfileUrl(data?.author_url, account) || !data?.html) return
+
+  const $ = load(data.html)
+  const paragraph = $("blockquote.twitter-tweet p").first()
+  paragraph.find("br").replaceWith(" ")
+  const title = normalizeText(paragraph.text() || String(candidate?.title ?? ""))
+  const url = normalizePostUrl($("blockquote.twitter-tweet a[href*='/status/']").last().attr("href"), account)
+  if (!title || !url || (candidate?.url && candidate.url !== url)) return
+  return createXPost(account, title, url, candidate?.pubDate as number | undefined)
+}
+
+async function mapConcurrent<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>) {
+  const results: R[] = []
+  let cursor = 0
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++
+      results[index] = await mapper(items[index])
+    }
+  }))
+  return results
+}
+
+async function fetchVerifiedTiboPosts(account: XAccount) {
+  const feed = await myFetch<TiboFeedResponse>("https://codex-reset.com/api/feed", {
+    headers: {
+      "Accept": "application/json",
+      "User-Agent": "NewsNow Tibo timeline",
+    },
+    retry: 1,
+    timeout: 6000,
+  })
+  const candidates = parseTiboFeedCandidates(feed, account)
+  const verified = await mapConcurrent(candidates, 5, async (candidate) => {
+    try {
+      const url = new URL("https://publish.x.com/oembed")
+      url.searchParams.set("url", candidate.url)
+      url.searchParams.set("omit_script", "1")
+      url.searchParams.set("dnt", "true")
+      const data = await myFetch<XOEmbedResponse>(url.toString(), {
+        headers: {
+          "Accept": "application/json",
+          "User-Agent": "NewsNow X verification",
+        },
+        retry: 1,
+        timeout: 6000,
+      })
+      return parseXOEmbedPost(data, account, candidate)
+    } catch {
+      return undefined
+    }
+  })
+  return curateFixedXPosts(verified.filter((item): item is NewsItem => Boolean(item)), candidates.length)
+}
+
+async function fetchEmbeddedAccountPosts(account: XAccount) {
   const embedUrl = `https://syndication.twitter.com/srv/timeline-profile/screen-name/${account.handle}`
   const html = await myFetch<string>(embedUrl, {
     responseType: "text",
@@ -188,6 +293,37 @@ async function fetchAccountPosts(account: XAccount) {
     timeout: 8000,
   })
   return parseXEmbeddedProfile(html, account)
+}
+
+async function fetchAccountPosts(account: XAccount) {
+  const embeddedPromise = fetchEmbeddedAccountPosts(account).catch((error) => {
+    logger.warn(`failed to fetch embedded X timeline @${account.handle}`, error)
+    return []
+  })
+
+  if (account.handle === "thsottiaux") {
+    const [embedded, verified] = await Promise.all([
+      embeddedPromise,
+      fetchVerifiedTiboPosts(account).catch((error) => {
+        logger.warn("failed to fetch verified Tibo timeline", error)
+        return []
+      }),
+    ])
+    if (verified.length) return verified
+    if (embedded.length) return embedded
+  } else {
+    const embedded = await embeddedPromise
+    if (embedded.length) return embedded
+  }
+
+  const profileUrl = `https://x.com/${account.handle}`
+  const html = await myFetch<string>(profileUrl, {
+    responseType: "text",
+    headers: browserHeaders,
+    retry: 1,
+    timeout: 8000,
+  })
+  return parseXProfilePage(html, account)
 }
 
 export default defineSource(async () => {
