@@ -30,40 +30,22 @@ function RootComponent() {
   usePWA()
   return (
     <>
-      <GlobalOverlayScrollbar className={$([
-        "h-full overflow-x-auto px-4",
-        "md:(px-10)",
-        "lg:(px-24)",
-      ])}
-      >
+      <GlobalOverlayScrollbar className="desk-shell h-full">
         <header
-          className={$([
-            "grid items-center py-4 px-5",
-            "lg:(py-6)",
-            "sticky top-0 z-10 backdrop-blur-md",
-          ])}
-          style={{
-            gridTemplateColumns: "50px auto 50px",
-          }}
+          className="desk-topbar"
         >
           <Header />
         </header>
-        <main className={$([
-          "mt-2",
-          "min-h-[calc(100vh-180px)]",
-          "md:(min-h-[calc(100vh-175px)])",
-          "lg:(min-h-[calc(100vh-194px)])",
-        ])}
-        >
+        <main className="desk-content">
           <Outlet />
         </main>
-        <footer className="py-6 flex flex-col items-center justify-center text-sm text-neutral-500 font-mono">
+        <footer className="desk-credits">
           <Footer />
         </footer>
       </GlobalOverlayScrollbar>
       <Toast />
       <SearchBar />
-      {import.meta.env.DEV && (
+      {import.meta.env.DEV && new URLSearchParams(window.location.search).has("debug") && (
         <>
           <ReactQueryDevtools buttonPosition="bottom-left" />
           <TanStackRouterDevtools position="bottom-right" />

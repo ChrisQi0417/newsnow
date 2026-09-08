@@ -1,4 +1,8 @@
 import type { SourceID, SourceResponse } from "@shared/types"
+import { createError, defineEventHandler, getQuery, setHeader } from "h3"
+import { sources } from "@shared/sources"
+import { TTL } from "@shared/consts"
+import { logger } from "#/utils/logger"
 import { getGetter, hasGetter, resolveSourceID } from "#/getters"
 import { getCacheTable } from "#/database/cache"
 import type { CacheInfo } from "#/types"
@@ -28,7 +32,7 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
           return {
             status: "success",
             id,
-            updatedTime: now,
+            updatedTime: cache.updated,
             items: cache.items,
           }
         }
@@ -65,6 +69,7 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
       if (cache!) {
         return {
           status: "cache",
+          refreshError: true,
           id,
           updatedTime: cache.updated,
           items: cache.items,

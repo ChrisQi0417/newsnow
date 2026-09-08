@@ -177,6 +177,13 @@ export function marketQuotesToNewsItems(quotes: MarketQuote[]): NewsItem[] {
       url: marketUrl(quote.symbol),
       pubDate: quote.updatedAt,
       extra: {
+        quote: {
+          name: config.name,
+          region: config.region,
+          value: quote.close,
+          changePercent: quote.changePercent,
+          status: quote.quoteStatus,
+        },
         info: `${formatSigned(quote.change)} · ${quote.quoteStatus}`,
         hover: [
           `现价：${formatNumber(quote.close)} ${quote.currency}`,

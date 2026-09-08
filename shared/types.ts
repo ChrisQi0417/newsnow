@@ -92,6 +92,13 @@ export interface NewsItem {
   mobileUrl?: string
   pubDate?: number | string
   extra?: {
+    quote?: {
+      name: string
+      region: string
+      value: number
+      changePercent: number
+      status: string
+    }
     hover?: string
     date?: number | string
     info?: false | string
@@ -105,6 +112,7 @@ export interface NewsItem {
 
 export interface SourceResponse {
   status: "success" | "cache"
+  refreshError?: boolean
   id: SourceID
   updatedTime: number | string
   items: NewsItem[]
