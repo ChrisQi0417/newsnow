@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { articleKey, articleTime, matchesArticle, sourceCategory, uniqueArticles } from "../src/utils/desk"
+import { articleKey, articleTime, matchesArticle, sourceCategory, sourceWarning, uniqueArticles } from "../src/utils/desk"
 import type { DeskArticle } from "../src/utils/desk"
 
 function article(sourceId: DeskArticle["sourceId"], id: string, url = "https://example.com/news"): DeskArticle {
@@ -7,6 +7,12 @@ function article(sourceId: DeskArticle["sourceId"], id: string, url = "https://e
 }
 
 describe("information desk", () => {
+  it("warns about a reachable but stale NHK feed without flagging current news", () => {
+    const item = article("nhk", "1").item
+    expect(sourceWarning("nhk", [item], Date.parse("2026-09-11T10:00:00Z"))).toContain("48")
+    expect(sourceWarning("nhk", [item], Date.parse("2026-09-08T11:00:00Z"))).toBeUndefined()
+    expect(sourceWarning("fed", [item], Date.parse("2026-09-11T10:00:00Z"))).toBeUndefined()
+  })
   it("keeps China sources out of international and technology filters", () => {
     expect(sourceCategory("xinhua-world")).toBe("china")
     expect(sourceCategory("people-finance")).toBe("china")

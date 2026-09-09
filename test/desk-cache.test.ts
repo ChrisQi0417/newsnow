@@ -38,6 +38,18 @@ beforeEach(() => {
 })
 
 describe("desk cache transparency", () => {
+  it("retains cached news and reports failure when upstream returns an empty list", async () => {
+    mocks.query.latest = "true"
+    mocks.getter.mockResolvedValue([])
+    expect(await handler(event)).toMatchObject({ status: "cache", refreshError: true, updatedTime: updated, items })
+    expect(mocks.set).not.toHaveBeenCalled()
+  })
+  it("rejects an empty response when no readable cache exists", async () => {
+    mocks.query.latest = "true"
+    mocks.get.mockResolvedValue(undefined)
+    mocks.getter.mockResolvedValue([])
+    await expect(handler(event)).rejects.toThrow("Source returned no news")
+  })
   it("preserves the real retrieval timestamp on a recent cache hit", async () => {
     expect(await handler(event)).toMatchObject({ updatedTime: updated, items })
     expect(mocks.getter).not.toHaveBeenCalled()

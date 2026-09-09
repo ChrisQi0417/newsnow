@@ -62,7 +62,11 @@ export function sourceKind(id: SourceID) {
   return "媒体报道"
 }
 
-export function sourceWarning(id: SourceID, items: NewsItem[]) {
+export function sourceWarning(id: SourceID, items: NewsItem[], now = Date.now()) {
+  if (id === "nhk" && items.length) {
+    const newest = Math.max(...items.map(articleTime))
+    if (newest && now - newest > 48 * 60 * 60_000) return "NHK 上游最新消息已超过 48 小时，接口连通不代表新闻已更新"
+  }
   if (id === "twitter") {
     const missing = [["thsottiaux", "Tibo"], ["openai", "OpenAI"]].filter(([account]) => !items.some(item => item.url.toLowerCase().includes(`/${account}/status/`)))
     if (missing.length) return `${missing.map(([, name]) => name).join("、")} 暂未返回消息`
