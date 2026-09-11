@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { H3Event } from "h3"
+import { sourceAttempts } from "../server/utils/traffic"
 
 const mocks = vi.hoisted(() => ({
   query: { id: "reuters" } as Record<string, string>,
@@ -31,8 +32,9 @@ let updated: number
 
 beforeEach(() => {
   vi.clearAllMocks()
+  sourceAttempts.clear()
   mocks.query = { id: "reuters" }
-  updated = Date.now() - 30_000
+  updated = Date.now() - 31 * 60_000
   mocks.get.mockResolvedValue({ id: "reuters", items, updated })
   mocks.getEntire.mockResolvedValue([{ id: "reuters", items, updated }])
 })
@@ -51,8 +53,24 @@ describe("desk cache transparency", () => {
     await expect(handler(event)).rejects.toThrow("Source returned no news")
   })
   it("preserves the real retrieval timestamp on a recent cache hit", async () => {
+    updated = Date.now() - 30_000
+    mocks.get.mockResolvedValue({ id: "reuters", items, updated })
     expect(await handler(event)).toMatchObject({ updatedTime: updated, items })
     expect(mocks.getter).not.toHaveBeenCalled()
+  })
+  it("does not let old clients bypass a fresh cache with latest=true", async () => {
+    mocks.query.latest = "true"
+    updated = Date.now() - 30_000
+    mocks.get.mockResolvedValue({ id: "reuters", items, updated })
+    expect(await handler(event)).toMatchObject({ updatedTime: updated, items })
+    expect(mocks.getter).not.toHaveBeenCalled()
+  })
+  it("does not repeatedly hit a failing upstream", async () => {
+    mocks.query.latest = "true"
+    mocks.getter.mockRejectedValue(new Error("upstream unavailable"))
+    await handler(event)
+    await handler(event)
+    expect(mocks.getter).toHaveBeenCalledOnce()
   })
   it("preserves timestamps when hydrating the entire desk", async () => {
     expect(await entire(event)).toEqual([{ id: "reuters", status: "cache", items, updatedTime: updated }])

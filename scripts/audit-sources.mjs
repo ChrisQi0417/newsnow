@@ -4,6 +4,8 @@ import process from "node:process"
 const sources = JSON.parse(await readFile(new URL("../shared/sources.json", import.meta.url), "utf8"))
 const base = process.env.AUDIT_URL || "https://newsnow-1nq.pages.dev"
 const ids = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(sources).filter(id => !sources[id].redirect)
+// Bulk active scans can fan out into hundreds of upstream/translation requests.
+if (!process.argv.slice(2).length || ids.length > 3) throw new Error("Specify 1-3 source IDs; bulk active auditing is disabled for traffic safety")
 const results = []
 let cursor = 0
 async function worker() {
@@ -11,7 +13,7 @@ async function worker() {
     const id = ids[cursor++]
     const start = Date.now()
     try {
-      const response = await fetch(`${base}/api/s?id=${encodeURIComponent(id)}&latest=true`, { signal: AbortSignal.timeout(45000) })
+      const response = await fetch(`${base}/api/s?id=${encodeURIComponent(id)}`, { signal: AbortSignal.timeout(15000) })
       const data = await response.json()
       const items = Array.isArray(data.items) ? data.items : []
       const times = items.map(item => new Date(item.pubDate || item.extra?.date || "").getTime()).filter(Number.isFinite)
@@ -19,8 +21,9 @@ async function worker() {
     } catch (error) {
       results.push({ id, ok: false, error: error.message, ms: Date.now() - start })
     }
+    await new Promise(resolve => setTimeout(resolve, 2000))
   }
 }
-await Promise.all(Array.from({ length: 3 }, worker))
+await worker()
 await writeFile(new URL("../source-audit.json", import.meta.url), JSON.stringify({ checkedAt: new Date().toISOString(), base, results }, null, 2))
 console.log(JSON.stringify({ total: results.length, passed: results.filter(item => item.ok).length, failed: results.filter(item => !item.ok), newest: results.filter(item => item.ok).map(({ id, newest }) => ({ id, newest })) }, null, 2))

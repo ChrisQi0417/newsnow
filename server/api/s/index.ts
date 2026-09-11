@@ -2,6 +2,7 @@ import type { SourceID, SourceResponse } from "@shared/types"
 import { createError, defineEventHandler, getQuery, setHeader } from "h3"
 import { sources } from "@shared/sources"
 import { TTL } from "@shared/consts"
+import { reserveSourceRefresh } from "#/utils/traffic"
 import { logger } from "#/utils/logger"
 import { getGetter, hasGetter, resolveSourceID } from "#/getters"
 import { getCacheTable } from "#/database/cache"
@@ -23,9 +24,8 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
     let cache: CacheInfo | undefined
     if (cacheTable) {
       cache = await cacheTable.get(id)
-      // An explicit latest request is the refresh button contract. Do not let
-      // the normal interval/TTL cache path hide fresh source data from it.
-      if (cache && !latest) {
+      // Even old clients using ?latest must respect the upstream safety floor.
+      if (cache && (!latest || now - cache.updated < Math.max(sources[id].interval, 10 * 60_000))) {
         // interval 刷新间隔，对于缓存失效也要执行的。本质上表示本来内容更新就很慢，这个间隔内可能内容压根不会更新。
         // 默认 10 分钟，是低于 TTL 的，但部分 Source 的更新间隔会超过 TTL，甚至有的一天更新一次。
         if (now - cache.updated < sources[id].interval) {
@@ -51,6 +51,7 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
     }
 
     try {
+      if (!requestScoped) reserveSourceRefresh(id)
       const getter = await getGetter(id)
       if (!getter) throw new Error("Invalid source id")
       const newData = (await getter(event)).slice(0, 30)
