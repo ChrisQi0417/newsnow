@@ -11,13 +11,13 @@ describe("automatic source refresh", () => {
     expect(refetchSources.has("weather")).toBe(true)
   })
 
-  it("deduplicates automatic refreshes for fifteen minutes", () => {
+  it("deduplicates automatic refreshes for one minute", () => {
     expect(scheduleSourceAutoRefresh("weather", 1000)).toBe(true)
     completeSourceRefresh("weather", 1000)
 
     expect(scheduleSourceAutoRefresh("weather", 60_999)).toBe(false)
     expect(refetchSources.has("weather")).toBe(false)
-    expect(scheduleSourceAutoRefresh("weather", 901_000)).toBe(true)
+    expect(scheduleSourceAutoRefresh("weather", 61_000)).toBe(true)
     expect(refetchSources.has("weather")).toBe(true)
   })
 
@@ -27,14 +27,14 @@ describe("automatic source refresh", () => {
 
     completeSourceRefresh("weather", 120_000)
     expect(scheduleSourceAutoRefresh("weather", 179_999)).toBe(false)
-    expect(scheduleSourceAutoRefresh("weather", 1_020_000)).toBe(true)
+    expect(scheduleSourceAutoRefresh("weather", 180_000)).toBe(true)
   })
 
   it("allows a failed refresh to retry after the cooldown", () => {
     expect(scheduleSourceAutoRefresh("weather", 1000)).toBe(true)
     failSourceRefresh("weather")
 
-    expect(scheduleSourceAutoRefresh("weather", 901_000)).toBe(true)
+    expect(scheduleSourceAutoRefresh("weather", 61_000)).toBe(true)
   })
 
   it("keeps other queued refreshes when a manual refresh is requested", () => {

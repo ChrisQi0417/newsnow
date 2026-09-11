@@ -80,23 +80,158 @@ async function writePersistentTranslations(namespace: string | undefined, entrie
   }
 }
 
-async function translateBatch(texts: string[]): Promise<string[]> {
-  const url = new URL("https://translate.googleapis.com/translate_a/single")
-  url.searchParams.set("client", "gtx")
-  url.searchParams.set("sl", "auto")
-  url.searchParams.set("tl", "zh-CN")
-  url.searchParams.set("dt", "t")
-  url.searchParams.set("q", texts.join("\n"))
-  try {
-    const data = await myFetch(url.toString(), { timeout: 8000, retry: 0 })
-    const translated = readGoogleTranslateResponse(data)
-    const lines = translated.split(/\n+/).map(normalizeTitle).filter(Boolean)
-    if (lines.length === texts.length) return lines
-    if (texts.length === 1 && translated) return [normalizeTitle(translated)]
-  } catch {
-    // Keep cached translations or source text; never rotate hosts or fan out per title.
+function decodeMyMemoryText(value: string) {
+  return value
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+}
+
+async function translateWithLingva(texts: string[]): Promise<string[]> {
+  const batches: string[][] = []
+  let batch: string[] = []
+  let batchLength = 0
+  for (const text of texts) {
+    const nextLength = batchLength + text.length + (batch.length ? 1 : 0)
+    if (batch.length && (batch.length >= 10 || nextLength > 1400)) {
+      batches.push(batch)
+      batch = []
+      batchLength = 0
+    }
+    batch.push(text)
+    batchLength += text.length + (batch.length > 1 ? 1 : 0)
   }
-  return texts
+  if (batch.length) batches.push(batch)
+
+  const translated: string[] = []
+
+  for (const batch of batches) {
+    const url = `https://lingva.dialectapp.org/api/v1/en/zh/${encodeURIComponent(batch.join("\n"))}`
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          "Accept": "application/json",
+          "User-Agent": "NewsNow translation",
+        },
+      })
+      if (!response.ok) {
+        translated.push(...batch)
+        continue
+      }
+      const data = JSON.parse(await response.text())
+      const rawValue = String(data?.translation ?? "")
+      const lines = rawValue.split(/\r?\n+/).map(normalizeTitle).filter(Boolean)
+      if (lines.length === batch.length && lines.every(Boolean)) {
+        translated.push(...lines)
+      } else if (batch.length === 1 && lines[0] && lines[0] !== batch[0]) {
+        translated.push(lines[0])
+      } else {
+        translated.push(...batch)
+      }
+    } catch {
+      translated.push(...batch)
+    }
+  }
+
+  return translated
+}
+
+async function translateWithMyMemory(texts: string[]): Promise<string[]> {
+  const translated: string[] = []
+
+  for (const text of texts) {
+    const url = new URL("https://api.mymemory.translated.net/get")
+    url.searchParams.set("q", text)
+    url.searchParams.set("langpair", "en|zh-CN")
+
+    try {
+      const response = await fetch(url.toString(), {
+        headers: {
+          "Accept": "application/json",
+          "User-Agent": "NewsNow translation",
+        },
+      })
+      if (!response.ok) {
+        translated.push(text)
+        continue
+      }
+      const data = JSON.parse(await response.text())
+      const value = normalizeTitle(decodeMyMemoryText(String(data?.responseData?.translatedText ?? "")))
+      if (value && value !== text) {
+        translated.push(value)
+      } else {
+        translated.push(text)
+      }
+    } catch {
+      translated.push(text)
+    }
+  }
+
+  return translated
+}
+
+async function translateWithFallback(texts: string[]) {
+  const lingva = await translateWithLingva(texts)
+  const unresolvedIndexes = lingva.flatMap((value, index) => value === texts[index] ? [index] : [])
+  if (!unresolvedIndexes.length) return lingva
+
+  const fallback = await translateWithMyMemory(unresolvedIndexes.map(index => texts[index]))
+  let fallbackIndex = 0
+  return lingva.map((value, index) => {
+    if (value !== texts[index]) return value
+    return fallback[fallbackIndex++] ?? value
+  })
+}
+
+async function translateBatch(texts: string[]): Promise<string[]> {
+  let data: any
+  for (const endpoint of [
+    "https://translate.google.com/translate_a/single",
+    "https://translate.googleapis.com/translate_a/single",
+    "https://translate.google.co.uk/translate_a/single",
+    "https://translate.google.de/translate_a/single",
+  ]) {
+    const url = new URL(endpoint)
+    url.searchParams.set("client", "gtx")
+    url.searchParams.set("sl", "auto")
+    url.searchParams.set("tl", "zh-CN")
+    url.searchParams.set("dt", "t")
+    url.searchParams.set("q", texts.join("\n"))
+
+    try {
+      const response = await fetch(url.toString(), {
+        headers: {
+          "Accept": "application/json,text/plain,*/*",
+          "User-Agent": "NewsNow translation",
+        },
+      })
+      if (!response.ok) {
+        continue
+      }
+      const raw = await response.text()
+      data = JSON.parse(raw)
+      const translated = readGoogleTranslateResponse(data)
+      if (translated) {
+        break
+      }
+    } catch {
+      // Try the alternate Google endpoint before falling back to the source title.
+    }
+  }
+
+  const translated = readGoogleTranslateResponse(data)
+  if (!translated) {
+    return translateWithFallback(texts)
+  }
+  const lines = translated.split(/\n+/).map(normalizeTitle).filter(Boolean)
+  if (lines.length === texts.length) return lines
+  if (texts.length === 1) return [normalizeTitle(translated)]
+
+  // Handle a malformed batch response title by title with a fallback provider.
+  return translateWithFallback(texts)
 }
 
 export async function translateTextsToChinese(texts: string[], persistentCacheNamespace?: string): Promise<string[]> {
@@ -127,7 +262,7 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
 
   let persistentCacheChanged = false
   let nextBatchIndex = 0
-  const workers = Array.from({ length: Math.min(1, batches.length) }, async () => {
+  const workers = Array.from({ length: Math.min(3, batches.length) }, async () => {
     while (nextBatchIndex < batches.length) {
       const currentBatch = batches[nextBatchIndex++]
       try {

@@ -19,9 +19,8 @@ export function useRefetch() {
         },
       })
     } else {
-      const allowed = sources.filter(id => requestSourceRefresh(id))
-      if (allowed.length) updateQuery(...allowed)
-      else toaster("刷新冷却中，请稍后再试", { type: "warning" })
+      sources.forEach(id => requestSourceRefresh(id))
+      updateQuery(...sources)
     }
   }, [loggedIn, toaster, login, enableLogin, updateQuery])
 

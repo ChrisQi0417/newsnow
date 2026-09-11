@@ -3,7 +3,7 @@ import type { SourceID, SourceResponse } from "@shared/types"
 export const cacheSources = new Map<SourceID, SourceResponse>()
 export const refetchSources = new Set<SourceID>()
 
-const sourceAutoRefreshInterval = 15 * 60 * 1000
+const sourceAutoRefreshInterval = 60 * 1000
 const sourceAutoRefreshTimes = new Map<SourceID, number>()
 
 export function scheduleSourceAutoRefresh(id: SourceID, now = Date.now()) {
@@ -18,7 +18,8 @@ export function scheduleSourceAutoRefresh(id: SourceID, now = Date.now()) {
 }
 
 export function requestSourceRefresh(id: SourceID, now = Date.now()) {
-  return scheduleSourceAutoRefresh(id, now)
+  sourceAutoRefreshTimes.set(id, now)
+  refetchSources.add(id)
 }
 
 export function completeSourceRefresh(id: SourceID, now = Date.now()) {

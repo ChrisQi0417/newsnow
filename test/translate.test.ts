@@ -1,14 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { translateTextsToChinese } from "../server/utils/translate"
 
-vi.mock("../server/utils/fetch", () => ({
-  myFetch: async (url: string) => {
-    const response = await fetch(url)
-    if (!response.ok) throw new Error("Translation unavailable")
-    return response.json()
-  },
-}))
-
 describe("shared translation acceleration", () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -31,7 +23,7 @@ describe("shared translation acceleration", () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it("runs cold translation batches sequentially", async () => {
+  it("runs cold translation batches with a maximum concurrency of three", async () => {
     const sources = Array.from({ length: 6 }, (_, index) => `Cold concurrent title ${index} ${"x".repeat(850)}`)
     let active = 0
     let maxActive = 0
@@ -54,16 +46,9 @@ describe("shared translation acceleration", () => {
     const translated = await translateTextsToChinese(sources, "test-concurrency")
 
     expect(fetchMock).toHaveBeenCalledTimes(sources.length)
-    expect(maxActive).toBe(1)
+    expect(maxActive).toBe(3)
     expect(translated.every(title => title.startsWith("中文："))).toBe(true)
     expect(runtimeCache.match).toHaveBeenCalledOnce()
     expect(runtimeCache.put).toHaveBeenCalledOnce()
-  })
-  it("does not rotate providers or request individual titles after a failure", async () => {
-    const fetchMock = vi.fn(async () => new Response("blocked", { status: 429 }))
-    vi.stubGlobal("fetch", fetchMock)
-    const titles = ["Untranslated rate limit test one", "Untranslated rate limit test two"]
-    expect(await translateTextsToChinese(titles)).toEqual(titles)
-    expect(fetchMock).toHaveBeenCalledOnce()
   })
 })

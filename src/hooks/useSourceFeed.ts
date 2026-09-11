@@ -39,7 +39,7 @@ export function useSourceFeed(id: SourceID) {
       if (latest && jwt) headers.Authorization = `Bearer ${jwt}`
       const data = await withSourceRequestLimit(() => {
         signal.throwIfAborted()
-        return myFetch<SourceResponse>(`/s?id=${id}`, { headers, signal })
+        return myFetch<SourceResponse>(`/s?id=${id}${latest ? "&latest" : ""}`, { headers, signal })
       }).catch((error) => {
         if (signal.aborted && latest) failSourceRefresh(id)
         throw error
@@ -58,7 +58,7 @@ export function useSourceFeed(id: SourceID) {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
-    retry: false,
+    retry: 1,
     retryDelay: 1500,
   })
   const { data, isFetching, isError, refetch } = query
@@ -72,11 +72,11 @@ export function useSourceFeed(id: SourceID) {
   }, [id, isError, isFetching])
 
   useEffect(() => {
-    if (data && Date.now() - new Date(data.updatedTime).getTime() >= Math.max(sources[id].interval, 15 * 60_000)) refreshLatest()
-  }, [id, data, refreshLatest])
+    if (data) refreshLatest()
+  }, [data, refreshLatest])
 
   useEffect(() => {
-    const interval = window.setInterval(refreshLatest, Math.max(sources[id].interval, 15 * 60_000))
+    const interval = window.setInterval(refreshLatest, Math.max(sources[id].interval, 60_000))
     document.addEventListener("visibilitychange", refreshLatest)
     window.addEventListener("pageshow", refreshLatest)
     window.addEventListener("online", refreshLatest)
