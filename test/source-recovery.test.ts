@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import apnews, { parseAPNewsIndex } from "../server/sources/apnews"
+import apnews, { parseAPNewsIndex, parseAPNewsRelay } from "../server/sources/apnews"
 import nhk, { parseNHKNews } from "../server/sources/nhk"
 import { isSourceResponse } from "../src/utils/source-response"
 
@@ -13,6 +13,27 @@ function entry(id: string, publisher = "https://apnews.com", date = "Sat, 12 Sep
 const feed = (items: string) => `<rss><channel>${items}</channel></rss>`
 
 describe("source outage recovery", () => {
+  it("validates the relay feed identity, AP attribution and UTC dates", () => {
+    const url = "https://news.google.com/rss/search?q=site%3Aapnews.com%2Farticle&hl=en-US"
+    const item = { title: "Verified headline - AP News", link: "https://news.google.com/rss/articles/abc", pubDate: "2026-09-13 01:00:00" }
+    const response = { status: "ok", feed: { url }, items: [item, item, { ...item, title: "Another publisher - Unknown" }] }
+    expect(parseAPNewsRelay(response, url)).toEqual([expect.objectContaining({ title: "Verified headline", pubDate: Date.parse("2026-09-13T01:00:00Z") })])
+    expect(parseAPNewsRelay({ ...response, feed: { url: "https://evil.example/rss" } }, url)).toEqual([])
+    expect(parseAPNewsRelay({ ...response, feed: { url: url.replace("apnews", "other") } }, url)).toEqual([])
+  })
+
+  it("uses the bounded relay fallback after an index 503", async () => {
+    fetchMock.mockReset().mockImplementation(async (url: string) => {
+      const target = new URL(url)
+      if (target.hostname !== "api.rss2json.com") throw new Error("503 unavailable")
+      return { status: "ok", feed: { url: target.searchParams.get("rss_url") }, items: [
+        { title: "Recovered headline - AP News", link: "https://news.google.com/rss/articles/abc", pubDate: "2026-09-13 01:00:00" },
+      ] }
+    })
+    expect(await apnews["apnews-world"]!({} as never)).toHaveLength(1)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+  })
+
   it("accepts only dated AP publisher entries, deduplicates and sorts newest first", () => {
     const items = parseAPNewsIndex(feed(entry("old") + entry("new", undefined, "Sun, 13 Sep 2026 00:00:00 GMT") + entry("old")
       + entry("fake", "https://apnews.com.example.com") + entry("broken", undefined, "bad date")))
