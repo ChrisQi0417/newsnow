@@ -40,35 +40,25 @@ export function parseAPNewsIndex(raw: string): NewsItem[] {
   }).sort((a, b) => Number(b.pubDate) - Number(a.pubDate)).slice(0, 30)
 }
 
-export function parseAPNewsRelay(data: any, feedUrl: string): NewsItem[] {
-  if (data?.status !== "ok" || !Array.isArray(data.items)) return []
-  try {
-    const expected = new URL(feedUrl)
-    const actual = new URL(data.feed?.url)
-    if (actual.origin !== expected.origin || actual.pathname !== expected.pathname
-      || [...expected.searchParams].some(([key, value]) => actual.searchParams.get(key) !== value)) {
-      return []
-    }
-  } catch {
-    return []
-  }
+export function parseAPNewsBing(raw: string, section: string): NewsItem[] {
+  const document = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" }).parse(raw)
+  const entries = document?.rss?.channel?.item
   const seen = new Set<string>()
-  return data.items.flatMap((item: any): NewsItem[] => {
+  return (Array.isArray(entries) ? entries : entries ? [entries] : []).flatMap((item): NewsItem[] => {
     try {
-      const url = new URL(item.link)
-      if (typeof item.title !== "string" || !item.title.endsWith(" - AP News")
-        || url.protocol !== "https:" || url.hostname !== "news.google.com" || !url.pathname.startsWith("/rss/articles/")) {
-        return []
-      }
-      const pubDate = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(item.pubDate)
-        ? Date.parse(`${item.pubDate.replace(" ", "T")}Z`)
-        : Number.NaN
-      const title = item.title.replace(/ - AP News$/, "").trim()
+      const link = new URL(item.link)
+      const url = link.hostname === "www.bing.com" && link.pathname === "/news/apiclick.aspx"
+        ? new URL(link.searchParams.get("url") || "")
+        : link
+      if (url.protocol !== "https:" || url.hostname !== "apnews.com" || !url.pathname.startsWith("/article/")) return []
+      const pubDate = Date.parse(item.pubDate)
+      const title = typeof item.title === "string" ? item.title.trim() : ""
       if (!title || !Number.isFinite(pubDate) || seen.has(url.href)) return []
+      if (section === routes["apnews-fact-check"] && !/\bfact[ -](?:focus|check)\b/i.test(`${title} ${url.pathname}`)) return []
       seen.add(url.href)
       return [{ id: url.href, title, url: url.href, pubDate, extra: {
-        info: "美联社 · Google News 索引（备用）",
-        hover: "Google News 索引经 RSS2JSON 转换；按主题检索，非官网栏目排序。",
+        info: "美联社 · Bing 新闻索引",
+        hover: "美联社原文链接；经 Bing 按主题检索，非官网栏目排序。",
       } }]
     } catch {
       return []
@@ -180,6 +170,19 @@ function defineAPNewsSource(url: string) {
     })
 
     if (!items.length) {
+      const topic = url === routes["apnews-world"]
+        ? "world"
+        : url === routes["apnews-business"]
+          ? "business"
+          : url === routes["apnews-fact-check"] ? "\"FACT FOCUS\"" : ""
+      const bing = `https://www.bing.com/news/search?q=${encodeURIComponent(`site:apnews.com ${topic}`.trim())}&format=rss&sortbydate=1&count=30`
+      try {
+        items = parseAPNewsBing(await myFetch<string>(bing, { responseType: "text", timeout: 4500, retry: 0 }), url)
+      } catch {
+        // Try the independent Google index when Bing is unavailable.
+      }
+    }
+    if (!items.length) {
       const feed = new URL("https://news.google.com/rss/search")
       feed.searchParams.set("q", `site:apnews.com/article ${indexQueries[url]}`)
       feed.searchParams.set("hl", "en-US")
@@ -190,10 +193,6 @@ function defineAPNewsSource(url: string) {
         items = parseAPNewsIndex(await myFetch<string>(feedUrl, { responseType: "text", timeout: 4500, retry: 0 }))
       } catch {
         // The public index can return 503 from some Cloudflare regions.
-      }
-      if (!items.length) {
-        const relay = await myFetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}`, { timeout: 6000, retry: 0 })
-        items = parseAPNewsRelay(relay, feedUrl)
       }
     }
     if (!items.length) throw new Error("Cannot fetch AP News page or publisher index")

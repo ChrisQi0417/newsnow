@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import apnews, { parseAPNewsIndex, parseAPNewsRelay } from "../server/sources/apnews"
+import apnews, { parseAPNewsBing, parseAPNewsIndex } from "../server/sources/apnews"
 import nhk, { parseNHKNews } from "../server/sources/nhk"
 import { isSourceResponse } from "../src/utils/source-response"
 
@@ -13,22 +13,22 @@ function entry(id: string, publisher = "https://apnews.com", date = "Sat, 12 Sep
 const feed = (items: string) => `<rss><channel>${items}</channel></rss>`
 
 describe("source outage recovery", () => {
-  it("validates the relay feed identity, AP attribution and UTC dates", () => {
-    const url = "https://news.google.com/rss/search?q=site%3Aapnews.com%2Farticle&hl=en-US"
-    const item = { title: "Verified headline - AP News", link: "https://news.google.com/rss/articles/abc", pubDate: "2026-09-13 01:00:00" }
-    const response = { status: "ok", feed: { url }, items: [item, item, { ...item, title: "Another publisher - Unknown" }] }
-    expect(parseAPNewsRelay(response, url)).toEqual([expect.objectContaining({ title: "Verified headline", pubDate: Date.parse("2026-09-13T01:00:00Z") })])
-    expect(parseAPNewsRelay({ ...response, feed: { url: "https://evil.example/rss" } }, url)).toEqual([])
-    expect(parseAPNewsRelay({ ...response, feed: { url: url.replace("apnews", "other") } }, url)).toEqual([])
+  it("validates Bing original URLs and excludes ordinary news from fact checking", () => {
+    const item = `<item><title>FACT FOCUS: Verified claim</title><link>http://www.bing.com/news/apiclick.aspx?url=https%3A%2F%2Fapnews.com%2Farticle%2Ffact-focus-abc</link><pubDate>Sun, 13 Sep 2026 01:00:00 GMT</pubDate></item>`
+    expect(parseAPNewsBing(feed(item + item), "https://apnews.com/ap-fact-check")).toEqual([expect.objectContaining({
+      title: "FACT FOCUS: Verified claim",
+      url: "https://apnews.com/article/fact-focus-abc",
+      pubDate: Date.parse("2026-09-13T01:00:00Z"),
+    })])
+    expect(parseAPNewsBing(feed(item.replace("apnews.com", "apnews.com.evil.example")), "https://apnews.com/")).toEqual([])
+    expect(parseAPNewsBing(feed(item.replace("FACT FOCUS", "Sports").replace("fact-focus", "sports")), "https://apnews.com/ap-fact-check")).toEqual([])
   })
 
-  it("uses the bounded relay fallback after an index 503", async () => {
+  it("uses the independent Google index after a Bing outage", async () => {
     fetchMock.mockReset().mockImplementation(async (url: string) => {
       const target = new URL(url)
-      if (target.hostname !== "api.rss2json.com") throw new Error("503 unavailable")
-      return { status: "ok", feed: { url: target.searchParams.get("rss_url") }, items: [
-        { title: "Recovered headline - AP News", link: "https://news.google.com/rss/articles/abc", pubDate: "2026-09-13 01:00:00" },
-      ] }
+      if (target.hostname !== "news.google.com") throw new Error("503 unavailable")
+      return feed(entry("recovered"))
     })
     expect(await apnews["apnews-world"]!({} as never)).toHaveLength(1)
     expect(fetchMock).toHaveBeenCalledTimes(4)
@@ -50,10 +50,10 @@ describe("source outage recovery", () => {
   it.each(["apnews-top", "apnews-world", "apnews-business", "apnews-fact-check"])("recovers %s when the official site rejects automated access", async (id) => {
     fetchMock.mockReset().mockImplementation(async (url: string) => {
       if (new URL(url).hostname === "apnews.com") throw new Error("403 Forbidden")
-      expect(new URL(url).hostname).toBe("news.google.com")
-      expect(new URL(url).searchParams.get("q")).toContain("site:apnews.com/article")
-      if (id === "apnews-fact-check") expect(new URL(url).searchParams.get("q")).toContain("\"fact check\"")
-      return feed(entry("recovered"))
+      expect(new URL(url).hostname).toBe("www.bing.com")
+      expect(new URL(url).searchParams.get("q")).toContain("site:apnews.com")
+      if (id === "apnews-fact-check") expect(new URL(url).searchParams.get("q")).toContain("\"FACT FOCUS\"")
+      return feed(`<item><title>FACT FOCUS: Recovered headline</title><link>https://apnews.com/article/recovered</link><pubDate>Sun, 13 Sep 2026 01:00:00 GMT</pubDate></item>`)
     })
     const getter = apnews[id as keyof typeof apnews]!
     const items = await getter({} as never)
