@@ -171,7 +171,7 @@ function defineAPNewsSource(url: string) {
 
     if (!items.length) {
       const topic = url === routes["apnews-world"]
-        ? "world"
+        ? "(international OR diplomacy OR war OR summit) -sports -basketball -football -baseball"
         : url === routes["apnews-business"]
           ? "business"
           : url === routes["apnews-fact-check"] ? "\"FACT FOCUS\"" : ""

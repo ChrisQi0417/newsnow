@@ -52,6 +52,7 @@ describe("source outage recovery", () => {
       if (new URL(url).hostname === "apnews.com") throw new Error("403 Forbidden")
       expect(new URL(url).hostname).toBe("www.bing.com")
       expect(new URL(url).searchParams.get("q")).toContain("site:apnews.com")
+      if (id === "apnews-world") expect(new URL(url).searchParams.get("q")).toContain("-basketball")
       if (id === "apnews-fact-check") expect(new URL(url).searchParams.get("q")).toContain("\"FACT FOCUS\"")
       return feed(`<item><title>FACT FOCUS: Recovered headline</title><link>https://apnews.com/article/recovered</link><pubDate>Sun, 13 Sep 2026 01:00:00 GMT</pubDate></item>`)
     })
