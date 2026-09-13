@@ -4,6 +4,7 @@ import { sources } from "@shared/sources"
 import { cacheSources, completeSourceRefresh, failSourceRefresh, refetchSources, scheduleSourceAutoRefresh, withSourceRequestLimit } from "~/utils/data"
 import { myFetch, safeParseString } from "~/utils"
 import { readSourceSnapshot, saveSourceSnapshot } from "~/utils/snapshots"
+import { isSourceResponse } from "~/utils/source-response"
 
 export function useDeskCache(ids: SourceID[]) {
   return useQuery({
@@ -16,7 +17,9 @@ export function useDeskCache(ids: SourceID[]) {
         timeout: 2000,
         signal,
       })
-      for (const entry of cached || []) {
+      if (!Array.isArray(cached)) throw new Error("Invalid desk cache response")
+      for (const entry of cached) {
+        if (!entry || !ids.includes(entry.id) || !isSourceResponse(entry, entry.id)) continue
         const previous = cacheSources.get(entry.id)
         if (!previous || new Date(previous.updatedTime).getTime() < new Date(entry.updatedTime).getTime()) cacheSources.set(entry.id, entry)
       }
@@ -44,6 +47,7 @@ export function useSourceFeed(id: SourceID) {
         if (signal.aborted && latest) failSourceRefresh(id)
         throw error
       })
+      if (!isSourceResponse(data, id)) throw new Error("Invalid news source response")
       if (latest) completeSourceRefresh(id)
       cacheSources.set(id, data)
       saveSourceSnapshot(data)

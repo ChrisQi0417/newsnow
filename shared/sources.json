@@ -474,7 +474,7 @@
     "type": "realtime",
     "desc": "NHK World English news JSON, titles translated to Chinese",
     "column": "world",
-    "home": "https://www3.nhk.or.jp/nhkworld/en/news/",
+    "home": "https://www3.nhk.or.jp/nhkworld/news/list/",
     "color": "red",
     "interval": 1800000
   },

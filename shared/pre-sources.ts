@@ -375,7 +375,7 @@ export const originSources = {
     color: "red",
     interval: Time.Common,
     desc: "NHK World English news JSON, titles translated to Chinese",
-    home: "https://www3.nhk.or.jp/nhkworld/en/news/",
+    home: "https://www3.nhk.or.jp/nhkworld/news/list/",
   },
   economist: {
     name: "经济学人",

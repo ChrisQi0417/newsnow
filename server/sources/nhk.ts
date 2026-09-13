@@ -13,10 +13,9 @@ interface NHKWorldResponse {
   data: NHKWorldItem[]
 }
 
-export default defineSource(async () => {
-  const data: NHKWorldResponse = await myFetch("https://www3.nhk.or.jp/nhkworld/data/en/news/all.json")
+export function parseNHKNews(data: NHKWorldResponse): NewsItem[] {
   const base = "https://www3.nhk.or.jp"
-  const items: NewsItem[] = data.data.slice(0, 50).map(item => ({
+  return data.data.slice(0, 30).map(item => ({
     id: item.id,
     title: item.title,
     url: new URL(item.page_url, base).href,
@@ -25,6 +24,10 @@ export default defineSource(async () => {
       hover: item.description,
     },
   }))
+}
 
+export default defineSource(async () => {
+  const data: NHKWorldResponse = await myFetch("https://api.nhkworld.jp/nwapi/news/v1/en/articles?type=news&tag=&offset=0&limit=30")
+  const items = parseNHKNews(data)
   return translateNewsItemsToChinese(items, "nhk")
 })

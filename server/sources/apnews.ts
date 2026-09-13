@@ -10,6 +10,36 @@ const routes = {
 }
 const newsSitemapUrl = "https://apnews.com/news-sitemap-content.xml"
 
+const indexQueries: Record<string, string> = {
+  "https://apnews.com/": "when:7d",
+  "https://apnews.com/world-news": "(world OR international OR diplomacy OR war) when:7d",
+  "https://apnews.com/business": "(business OR economy OR markets OR finance) when:7d",
+  "https://apnews.com/ap-fact-check": "\"fact check\" when:30d",
+}
+
+export function parseAPNewsIndex(raw: string): NewsItem[] {
+  const document = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" }).parse(raw)
+  const entries = document?.rss?.channel?.item
+  const seen = new Set<string>()
+  return (Array.isArray(entries) ? entries : entries ? [entries] : []).flatMap((entry): NewsItem[] => {
+    try {
+      const publisher = new URL(entry.source?.url)
+      const url = new URL(entry.link)
+      const title = typeof entry.title === "string" ? entry.title.replace(/\s+-\s+AP News$/, "").trim() : ""
+      const pubDate = Date.parse(entry.pubDate)
+      if (publisher.protocol !== "https:" || publisher.hostname !== "apnews.com"
+        || url.protocol !== "https:" || url.hostname !== "news.google.com" || !url.pathname.startsWith("/rss/articles/")
+        || !title || !Number.isFinite(pubDate) || seen.has(url.href)) {
+        return []
+      }
+      seen.add(url.href)
+      return [{ id: url.href, title, url: url.href, pubDate, extra: { info: "美联社 · Google News 索引" } }]
+    } catch {
+      return []
+    }
+  }).sort((a, b) => Number(b.pubDate) - Number(a.pubDate)).slice(0, 30)
+}
+
 export function parseAPNewsSitemap(xml: string) {
   const parser = new XMLParser({
     attributeNamePrefix: "",
@@ -99,21 +129,30 @@ export function parseAPNewsPage(html: string, url: string) {
 function defineAPNewsSource(url: string) {
   return defineSource(async () => {
     const [pageResult, sitemapResult] = await Promise.allSettled([
-      myFetch<string>(url, { responseType: "text" }),
-      myFetch<string>(newsSitemapUrl, { responseType: "text" }),
+      myFetch<string>(url, { responseType: "text", timeout: 8000, retry: 0 }),
+      myFetch<string>(newsSitemapUrl, { responseType: "text", timeout: 8000, retry: 0 }),
     ])
     const html = pageResult.status === "fulfilled" ? pageResult.value : ""
     const sitemap = sitemapResult.status === "fulfilled" ? sitemapResult.value : ""
     const sitemapItems = sitemap ? parseAPNewsSitemap(sitemap) : []
     const metadata = new Map(sitemapItems.map(item => [item.url, item]))
     const pageItems = html ? parseAPNewsPage(html, url) : []
-    const items = (pageItems.length ? pageItems : sitemapItems.slice(0, 50)).map((item) => {
+    // A general sitemap must not replace a specific editorial section.
+    let items = (pageItems.length ? pageItems : url === routes["apnews-top"] ? sitemapItems.slice(0, 30) : []).map((item) => {
       const official = metadata.get(item.url)
       return official ? { ...item, title: official.title, pubDate: official.pubDate } : item
     })
 
-    if (!items.length) throw new Error("Cannot fetch AP News page")
-    return translateNewsItemsToChinese(items, `apnews:${url}`)
+    if (!items.length) {
+      const feed = new URL("https://news.google.com/rss/search")
+      feed.searchParams.set("q", `site:apnews.com/article ${indexQueries[url]}`)
+      feed.searchParams.set("hl", "en-US")
+      feed.searchParams.set("gl", "US")
+      feed.searchParams.set("ceid", "US:en")
+      items = parseAPNewsIndex(await myFetch<string>(feed.href, { responseType: "text", timeout: 8000, retry: 0 }))
+    }
+    if (!items.length) throw new Error("Cannot fetch AP News page or publisher index")
+    return translateNewsItemsToChinese(items.slice(0, 30), `apnews:${url}`)
   })
 }
 
