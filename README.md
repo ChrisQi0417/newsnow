@@ -4,28 +4,39 @@
 
 ![](screenshots/preview-2.png)
 
-English | [简体中文](README.zh-CN.md) | [日本語](README.ja-JP.md)
+English | [简体中文](README.zh-CN.md) | [日本語](README.ja-JP.md) · [Live demo](https://newsnow-1nq.pages.dev/c/realtime)
 
 > [!NOTE]
-> This is a demo version currently supporting Chinese only. A full-featured version with better customization and English content support will be released later.
+> NewsNow is a self-hostable project. The interface is currently Chinese-first; English source titles are translated to Chinese while the original publisher link is retained.
 
-***Elegant reading of real-time and hottest news***
+***A fast, source-aware dashboard for global news and live information***
 
 ## Features
-- Clean and elegant UI design for optimal reading experience
-- Real-time updates on trending news
-- GitHub OAuth login with data synchronization
-- 30-minute default cache duration (logged-in users can force refresh)
-- Adaptive scraping interval (minimum 2 minutes) based on source update frequency to optimize resource usage and prevent IP bans
+- Fast refresh with a per-source schedule, last-successful snapshot fallback, and an explicit latest refresh action
+- Chinese-first reading experience with translated titles and links to the original source
+- 48 active source feeds across news, markets, weather, technology, social posts, and public institutions
+- GitHub OAuth login with optional cross-device preference synchronization
+- A curated hottest view that prefers accountable newsrooms, wire services, official releases, and public broadcasters
+
+## Current coverage
+
+- **Global markets:** US, China, Japan, and South Korea market indexes, plus the US Dollar Index and gold
+- **Weather and events:** IP-estimated local weather, Beijing weather, typhoons, and recent global earthquakes
+- **US and technology:** Trump Truth Social, Tibo and OpenAI on X, US-focused AI news, GitHub Trending, and Apple News/Podcasts
+- **Finance and central banks:** Pi Network, Federal Reserve updates, Reuters, AP, AFP, Bloomberg, Financial Times, WSJ, and Nikkei Asia
+- **International news:** BBC News, BBC World Service, DW, France 24, NHK World, The Economist, RFI, and UN News
+- **China coverage:** The Chinese government website, People's Daily, China News Service, Xinhua English, and SCMP
+
+Source availability depends on the publisher and its public feed. When an upstream service is unavailable, NewsNow keeps the last successful snapshot and marks the refresh state instead of presenting it as new. Translation is machine-assisted and should not be treated as an official translation.
 
 ## Deployment
 
 ### Basic Deployment
-For deployments without login and caching:
+For a basic deployment without login or persistent caching:
 1. Fork this repository
-2. Import to platforms like Cloudflare Page or Vercel
+2. Import to platforms like Cloudflare Pages or Vercel
 
-### Cloudflare Page Configuration
+### Cloudflare Pages configuration
 - Build command: `pnpm run build`
 - Output directory: `dist/output/public`
 
@@ -39,9 +50,9 @@ For deployments without login and caching:
 Refer to `example.env.server`. For local development, rename it to `.env.server` and configure:
 
 ```env
-# Github Client ID
+# GitHub Client ID
 G_CLIENT_ID=
-# Github Client Secret
+# GitHub Client Secret
 G_CLIENT_SECRET=
 # JWT Secret, usually the same as Client Secret
 JWT_SECRET=
@@ -78,13 +89,23 @@ pnpm i
 pnpm dev
  ```
 
-### Adding Data Sources
-Refer to `shared/sources` and `server/source`s directories. The project provides complete type definitions and a clean architecture.
+### Adding data sources
+Register source metadata in `shared/pre-sources.ts`, implement the getter in `server/sources/`, and add parser tests under `test/`. Keep the original publisher URL and publication timestamp whenever the upstream feed provides them.
 
-## Roadmap
-- Add **multi-language support** (English, Chinese, more to come).
-- Improve **personalization options** (category-based news, saved preferences).
-- Expand **data sources** to cover global news in multiple languages.
+### Verification
+
+```sh
+pnpm test
+pnpm typecheck
+pnpm build
+```
+
+## Source and usage notes
+
+- NewsNow is an aggregator, not a news publisher or fact-checking service.
+- Publisher names, logos, article text, and feeds remain subject to their respective owners' terms.
+- A source can be delayed, rate-limited, blocked, or temporarily unavailable; no feed is guaranteed to be complete or error-free.
+- Do not use the dashboard for investment, emergency, medical, legal, or other high-stakes decisions without checking the original source.
 
 ***release when ready***
 ![](https://testmnbbs.oss-cn-zhangjiakou.aliyuncs.com/pic/20250328172146_rec_.gif?x-oss-process=base_webp)
@@ -94,12 +115,12 @@ Contributions are welcome! Feel free to submit pull requests or create issues fo
 
 ## License
 
-[MIT](./LICENSE) 
+[MIT](./LICENSE). The project is based on [ourongxing/newsnow](https://github.com/ourongxing/newsnow/); see `LICENSE` for the upstream and current-maintainer copyright notices.
 
 # 🙏 感谢
 [ourongxing](https://github.com/ourongxing/newsnow/)
 
- # 
+ #
 <center>
 <details><summary><strong> [点击展开] 赞赏支持 ~🧧</strong></summary>
 *我非常感谢您的赞赏和支持，它们将极大地激励我继续创新，持续产生有价值的工作。*
@@ -107,10 +128,10 @@ Contributions are welcome! Feel free to submit pull requests or create issues fo
 - **USDT-TRC20:** `TWTxUyay6QJN3K4fs4kvJTT8Zfa2mWTwDD`
 - **TRX-TRC20:** `TWTxUyay6QJN3K4fs4kvJTT8Zfa2mWTwDD`
 
-<div align="center"> 
-  <img src="https://github.com/user-attachments/assets/e6cdc42a-6374-4722-b833-601738f72196" width="200"></br> 
-  TRC10/TRC20扫码支付 
-</div> 
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/e6cdc42a-6374-4722-b833-601738f72196" width="200"></br>
+  TRC10/TRC20扫码支付
+</div>
 </details>
 </center>
 
