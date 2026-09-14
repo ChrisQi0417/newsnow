@@ -107,36 +107,6 @@ pnpm build
 - A source can be delayed, rate-limited, blocked, or temporarily unavailable; no feed is guaranteed to be complete or error-free.
 - Do not use the dashboard for investment, emergency, medical, legal, or other high-stakes decisions without checking the original source.
 
-***release when ready***
-![](https://testmnbbs.oss-cn-zhangjiakou.aliyuncs.com/pic/20250328172146_rec_.gif?x-oss-process=base_webp)
-
-## Contributing
-Contributions are welcome! Feel free to submit pull requests or create issues for feature requests and bug reports.
-
 ## License
 
-[MIT](./LICENSE). The project is based on [ourongxing/newsnow](https://github.com/ourongxing/newsnow/); see `LICENSE` for the upstream and current-maintainer copyright notices.
-
-# 🙏 感谢
-[ourongxing](https://github.com/ourongxing/newsnow/)
-
- #
-<center>
-<details><summary><strong> [点击展开] 赞赏支持 ~🧧</strong></summary>
-*我非常感谢您的赞赏和支持，它们将极大地激励我继续创新，持续产生有价值的工作。*
-
-- **USDT-TRC20:** `TWTxUyay6QJN3K4fs4kvJTT8Zfa2mWTwDD`
-- **TRX-TRC20:** `TWTxUyay6QJN3K4fs4kvJTT8Zfa2mWTwDD`
-
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/e6cdc42a-6374-4722-b833-601738f72196" width="200"></br>
-  TRC10/TRC20扫码支付
-</div>
-</details>
-</center>
-
- #
- 免责声明:
- - 1、该项目设计和开发仅供学习、研究和安全测试目的。请于下载后 24 小时内删除, 不得用作任何商业用途, 文字、数据及图片均有所属版权, 如转载须注明来源。
- - 2、使用本程序必循遵守部署服务器所在地区的法律、所在国家和用户所在国家的法律法规。对任何人或团体使用该项目时产生的任何后果由使用者承担。
- - 3、作者不对使用该项目可能引起的任何直接或间接损害负责。作者保留随时更新免责声明的权利，且不另行通知。
+[MIT](./LICENSE). Copyright and license details are maintained in `LICENSE`.

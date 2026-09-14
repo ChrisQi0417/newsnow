@@ -109,9 +109,6 @@ pnpm build
 - 来源可能延迟、限流、被屏蔽或暂时不可用，任何接口都不能保证完整或始终无误。
 - 投资、应急、医疗、法律等高风险场景，请务必核对原始来源，不要只依据本项目内容。
 
-## 贡献指南
-欢迎贡献代码！您可以提交 pull request 或创建 issue 来提出功能请求和报告 bug
+## 许可证
 
-## License
-
-[MIT](./LICENSE)。本项目基于 [ourongxing/newsnow](https://github.com/ourongxing/newsnow/)，上游作者和当前维护者的版权信息见 `LICENSE`。
+[MIT](./LICENSE)。版权和许可证信息统一维护在 `LICENSE` 文件中。
