@@ -401,27 +401,24 @@ async function fetchMediaFeed() {
 async function fetchMediaReaderFeed() {
   const markdown = await myFetch<string>(mediaReaderFeedUrl, {
     responseType: "text",
-    retry: 1,
-    timeout: 10000,
+    retry: 0,
+    timeout: 8000,
   })
   return parsePiMediaReaderFeed(markdown)
 }
 
 async function fetchMediaJsonFeeds() {
-  const items: NewsItem[] = []
-  for (const [index, url] of mediaJsonFeedUrls.entries()) {
-    if (index) await new Promise(resolve => setTimeout(resolve, 750))
-    try {
-      const response = await myFetch<PiMediaJsonResponse>(url, {
-        retry: 0,
-        timeout: 7000,
-      })
-      items.push(...parsePiMediaJson(response))
-    } catch (error) {
-      logger.warn("failed to fetch Pi Network structured media feed", error)
-    }
-  }
-  return curatePiNews(items, 15)
+  const results = await Promise.allSettled(mediaJsonFeedUrls.map(async (url) => {
+    const response = await myFetch<PiMediaJsonResponse>(url, {
+      retry: 0,
+      timeout: 6000,
+    })
+    return parsePiMediaJson(response)
+  }))
+  results.forEach((result) => {
+    if (result.status === "rejected") logger.warn("failed to fetch Pi Network structured media feed", result.reason)
+  })
+  return curatePiNews(results.flatMap(result => result.status === "fulfilled" ? result.value : []), 15)
 }
 
 async function fetchDirectMediaFeeds() {
@@ -429,8 +426,8 @@ async function fetchDirectMediaFeeds() {
     const raw = await myFetch<string>(feed.url, {
       responseType: "text",
       headers: browserHeaders,
-      retry: 1,
-      timeout: 8000,
+      retry: 0,
+      timeout: 6000,
     })
     return parsePiDirectMediaFeed(raw, feed.sourceName)
   }))

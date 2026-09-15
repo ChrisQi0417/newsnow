@@ -7,6 +7,8 @@ const latinRegExp = /[A-Z]/i
 const persistentCacheBaseUrl = "https://newsnow-1nq.pages.dev/__internal-cache/translations-v3"
 const persistentCacheMaxAge = 7 * 24 * 60 * 60
 const persistentCacheEntryLimit = 300
+const translationRequestTimeoutMs = 2500
+const translationBudgetMs = 12000
 
 interface RuntimeCache {
   match: (request: Request) => Promise<Response | undefined>
@@ -28,6 +30,19 @@ function normalizeTranslationBoundary(value: string) {
     .replace(/[‘’]/g, "'")
     .replace(/[^\p{L}\p{N}]+/gu, "")
     .toLocaleLowerCase()
+}
+
+async function translationFetch(input: string, init: RequestInit, deadline: number) {
+  const remaining = deadline - Date.now()
+  if (remaining <= 0) throw new Error("translation deadline exceeded")
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), Math.min(translationRequestTimeoutMs, remaining))
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 function readGoogleTranslateResponse(data: any, texts: string[]) {
@@ -131,7 +146,7 @@ function decodeMyMemoryText(value: string) {
     .replace(/&gt;/g, ">")
 }
 
-async function translateWithLingva(texts: string[]): Promise<string[]> {
+async function translateWithLingva(texts: string[], deadline: number): Promise<string[]> {
   const batches: string[][] = []
   let batch: string[] = []
   let batchLength = 0
@@ -149,16 +164,17 @@ async function translateWithLingva(texts: string[]): Promise<string[]> {
 
   const translated: string[] = []
 
-  for (const batch of batches) {
+  for (const [index, batch] of batches.entries()) {
+    if (Date.now() >= deadline) return translated.concat(batches.slice(index).flat())
     const url = `https://lingva.dialectapp.org/api/v1/en/zh/${encodeURIComponent(batch.join("\n"))}`
 
     try {
-      const response = await fetch(url, {
+      const response = await translationFetch(url, {
         headers: {
           "Accept": "application/json",
           "User-Agent": "NewsNow translation",
         },
-      })
+      }, deadline)
       if (!response.ok) {
         translated.push(...batch)
         continue
@@ -181,21 +197,22 @@ async function translateWithLingva(texts: string[]): Promise<string[]> {
   return translated
 }
 
-async function translateWithMyMemory(texts: string[]): Promise<string[]> {
+async function translateWithMyMemory(texts: string[], deadline: number): Promise<string[]> {
   const translated: string[] = []
 
-  for (const text of texts) {
+  for (const [index, text] of texts.entries()) {
+    if (Date.now() >= deadline) return translated.concat(texts.slice(index))
     const url = new URL("https://api.mymemory.translated.net/get")
     url.searchParams.set("q", text)
     url.searchParams.set("langpair", "en|zh-CN")
 
     try {
-      const response = await fetch(url.toString(), {
+      const response = await translationFetch(url.toString(), {
         headers: {
           "Accept": "application/json",
           "User-Agent": "NewsNow translation",
         },
-      })
+      }, deadline)
       if (!response.ok) {
         translated.push(text)
         continue
@@ -215,12 +232,12 @@ async function translateWithMyMemory(texts: string[]): Promise<string[]> {
   return translated
 }
 
-async function translateWithFallback(texts: string[]) {
-  const lingva = await translateWithLingva(texts)
+async function translateWithFallback(texts: string[], deadline: number) {
+  const lingva = await translateWithLingva(texts, deadline)
   const unresolvedIndexes = lingva.flatMap((value, index) => value === texts[index] ? [index] : [])
   if (!unresolvedIndexes.length) return lingva
 
-  const fallback = await translateWithMyMemory(unresolvedIndexes.map(index => texts[index]))
+  const fallback = await translateWithMyMemory(unresolvedIndexes.map(index => texts[index]), deadline)
   let fallbackIndex = 0
   return lingva.map((value, index) => {
     if (value !== texts[index]) return value
@@ -228,7 +245,7 @@ async function translateWithFallback(texts: string[]) {
   })
 }
 
-async function translateBatch(texts: string[]): Promise<string[]> {
+async function translateBatch(texts: string[], deadline: number): Promise<string[]> {
   let data: any
   for (const endpoint of [
     "https://translate.google.com/translate_a/single",
@@ -236,6 +253,7 @@ async function translateBatch(texts: string[]): Promise<string[]> {
     "https://translate.google.co.uk/translate_a/single",
     "https://translate.google.de/translate_a/single",
   ]) {
+    if (Date.now() >= deadline) break
     const url = new URL(endpoint)
     url.searchParams.set("client", "gtx")
     url.searchParams.set("sl", "auto")
@@ -244,21 +262,19 @@ async function translateBatch(texts: string[]): Promise<string[]> {
     url.searchParams.set("q", texts.join("\n"))
 
     try {
-      const response = await fetch(url.toString(), {
+      const response = await translationFetch(url.toString(), {
         headers: {
           "Accept": "application/json,text/plain,*/*",
           "User-Agent": "NewsNow translation",
         },
-      })
+      }, deadline)
       if (!response.ok) {
         continue
       }
       const raw = await response.text()
       data = JSON.parse(raw)
       const translated = readGoogleTranslateResponse(data, texts)
-      if (translated.length === texts.length) {
-        break
-      }
+      if (translated.length === texts.length) return translated
     } catch {
       // Try the alternate Google endpoint before falling back to the source title.
     }
@@ -266,7 +282,7 @@ async function translateBatch(texts: string[]): Promise<string[]> {
 
   const translated = readGoogleTranslateResponse(data, texts)
   if (translated.length !== texts.length) {
-    return translateWithFallback(texts)
+    return translateWithFallback(texts, deadline)
   }
   return translated
 }
@@ -275,6 +291,7 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
   const normalizedTexts = texts.map(text => normalizeTitle(String(text ?? "")))
   const targets = normalizedTexts.filter(text => text && shouldTranslate(text))
   const uniqueTargets = [...new Set(targets)]
+  const deadline = Date.now() + translationBudgetMs
 
   const persistentEntries = await readPersistentTranslations(
     uniqueTargets.filter(text => !translateCache.has(text)),
@@ -306,7 +323,7 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
     while (nextBatchIndex < batches.length) {
       const currentBatch = batches[nextBatchIndex++]
       try {
-        const translated = await translateBatch(currentBatch)
+        const translated = await translateBatch(currentBatch, deadline)
         currentBatch.forEach((text, index) => {
           const translatedTitle = normalizeTitle(String(translated[index] ?? ""))
           if (translatedTitle && translatedTitle !== text && zhRegExp.test(translatedTitle)) {
