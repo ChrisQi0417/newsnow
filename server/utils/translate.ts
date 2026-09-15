@@ -26,7 +26,7 @@ function normalizeTranslationBoundary(value: string) {
   return normalizeTitle(value)
     .replace(/[“”]/g, "\"")
     .replace(/[‘’]/g, "'")
-    .replace(/\s+/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "")
     .toLocaleLowerCase()
 }
 
