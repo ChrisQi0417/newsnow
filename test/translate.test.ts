@@ -51,4 +51,27 @@ describe("shared translation acceleration", () => {
     expect(runtimeCache.match).toHaveBeenCalledOnce()
     expect(runtimeCache.put).toHaveBeenCalledOnce()
   })
+
+  it("reassembles Google segments that split one title at punctuation", async () => {
+    const first = "Could AI really kill us all? Why tech CEOs want to slow down."
+    const second = "Fifteen colleges now charge more than $100,000 a year in tuition."
+    const runtimeCache = {
+      delete: vi.fn(),
+      match: vi.fn(async () => undefined),
+      put: vi.fn(async () => {}),
+    }
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify([[
+      ["人工智能真的会杀死我们所有人吗？", "Could AI really kill us all? "],
+      ["为什么科技公司的首席执行官想要放慢脚步。", "Why tech CEOs want to slow down."],
+      ["每年学费超过十万美元的大学已有十五所。", second],
+    ]])))
+    vi.stubGlobal("caches", { default: runtimeCache })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(translateTextsToChinese([first, second], "test-segmented-google")).resolves.toEqual([
+      "人工智能真的会杀死我们所有人吗？为什么科技公司的首席执行官想要放慢脚步。",
+      "每年学费超过十万美元的大学已有十五所。",
+    ])
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
 })

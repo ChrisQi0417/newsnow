@@ -19,6 +19,11 @@ describe("truth Social refresh", () => {
           <description><![CDATA[RT: https://truthsocial.com/users/realDonaldTrump/statuses/2]]></description>
           <guid>post-2</guid>
         </item>
+        <item>
+          <title>QUERY LENGTH LIMIT EXCEEDED. MAX ALLOWED QUERY : 500 CHARS</title>
+          <description><![CDATA[QUERY LENGTH LIMIT EXCEEDED. MAX ALLOWED QUERY : 500 CHARS]]></description>
+          <guid>feed-error</guid>
+        </item>
       </channel></rss>
     `)
 

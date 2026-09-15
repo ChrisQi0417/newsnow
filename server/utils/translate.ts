@@ -3,7 +3,8 @@ import type { NewsItem } from "@shared/types"
 const translateCache = new Map<string, string>()
 const zhRegExp = /[\u3400-\u9FFF]/
 const latinRegExp = /[A-Z]/i
-const persistentCacheBaseUrl = "https://newsnow-1nq.pages.dev/__internal-cache/translations-v2"
+// Bump the namespace after changing batch parsing so stale partial translations are retried.
+const persistentCacheBaseUrl = "https://newsnow-1nq.pages.dev/__internal-cache/translations-v3"
 const persistentCacheMaxAge = 7 * 24 * 60 * 60
 const persistentCacheEntryLimit = 300
 
@@ -21,9 +22,50 @@ function normalizeTitle(title: string) {
   return title.replace(/\s+/g, " ").trim()
 }
 
-function readGoogleTranslateResponse(data: any) {
-  if (!Array.isArray(data?.[0])) return ""
-  return data[0].map((part: any) => Array.isArray(part) ? part[0] ?? "" : "").join("").trim()
+function normalizeTranslationBoundary(value: string) {
+  return normalizeTitle(value)
+    .replace(/[“”]/g, "\"")
+    .replace(/[‘’]/g, "'")
+    .replace(/\s+/g, "")
+    .toLocaleLowerCase()
+}
+
+function readGoogleTranslateResponse(data: any, texts: string[]) {
+  if (!Array.isArray(data?.[0])) return []
+
+  const parts = data[0].flatMap((part: any) => {
+    if (!Array.isArray(part)) return []
+    const translation = normalizeTitle(String(part[0] ?? ""))
+    const source = normalizeTitle(String(part[1] ?? ""))
+    return translation && source ? [{ translation, source }] : []
+  })
+  if (!parts.length) return []
+
+  const results: string[] = []
+  let partIndex = 0
+  for (const text of texts) {
+    const target = normalizeTranslationBoundary(text)
+    let source = ""
+    let translation = ""
+    let matched = false
+
+    while (partIndex < parts.length) {
+      const part = parts[partIndex++]
+      source += part.source
+      translation += part.translation
+      const normalizedSource = normalizeTranslationBoundary(source)
+      if (normalizedSource === target) {
+        results.push(normalizeTitle(translation))
+        matched = true
+        break
+      }
+      if (!target.startsWith(normalizedSource)) return []
+    }
+
+    if (!matched) return []
+  }
+
+  return results.length === texts.length ? results : []
 }
 
 function shouldTranslate(title: string) {
@@ -213,8 +255,8 @@ async function translateBatch(texts: string[]): Promise<string[]> {
       }
       const raw = await response.text()
       data = JSON.parse(raw)
-      const translated = readGoogleTranslateResponse(data)
-      if (translated) {
+      const translated = readGoogleTranslateResponse(data, texts)
+      if (translated.length === texts.length) {
         break
       }
     } catch {
@@ -222,16 +264,11 @@ async function translateBatch(texts: string[]): Promise<string[]> {
     }
   }
 
-  const translated = readGoogleTranslateResponse(data)
-  if (!translated) {
+  const translated = readGoogleTranslateResponse(data, texts)
+  if (translated.length !== texts.length) {
     return translateWithFallback(texts)
   }
-  const lines = translated.split(/\n+/).map(normalizeTitle).filter(Boolean)
-  if (lines.length === texts.length) return lines
-  if (texts.length === 1) return [normalizeTitle(translated)]
-
-  // Handle a malformed batch response title by title with a fallback provider.
-  return translateWithFallback(texts)
+  return translated
 }
 
 export async function translateTextsToChinese(texts: string[], persistentCacheNamespace?: string): Promise<string[]> {
@@ -243,7 +280,10 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
     uniqueTargets.filter(text => !translateCache.has(text)),
     persistentCacheNamespace,
   )
-  const pendingTargets = uniqueTargets.filter(text => !translateCache.has(text))
+  const pendingTargets = uniqueTargets.filter((text) => {
+    const cached = translateCache.get(text)
+    return !cached || cached === text || !zhRegExp.test(cached)
+  })
 
   const batches: string[][] = []
   let batch: string[] = []
@@ -269,7 +309,7 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
         const translated = await translateBatch(currentBatch)
         currentBatch.forEach((text, index) => {
           const translatedTitle = normalizeTitle(String(translated[index] ?? ""))
-          if (translatedTitle && translatedTitle !== text) {
+          if (translatedTitle && translatedTitle !== text && zhRegExp.test(translatedTitle)) {
             translateCache.set(text, translatedTitle)
             if (zhRegExp.test(translatedTitle)) {
               persistentEntries.delete(text)

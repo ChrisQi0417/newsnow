@@ -26,14 +26,19 @@ function stripHTML(html = "") {
     .trim()
 }
 
+function isFeedError(value: string) {
+  return /^(?:query length limit exceeded|error\b|cannot fetch\b)/i.test(value.trim())
+}
+
 export function parseTruthSocialFeed(raw: string): NewsItem[] {
   const parser = new XMLParser({
     ignoreAttributes: false,
   })
   const items = asArray<TruthSocialRSSItem>(parser.parse(raw)?.rss?.channel?.item)
-  return items.slice(0, 50).map((item) => {
+  return items.slice(0, 50).flatMap((item): NewsItem[] => {
     const originalTitle = item.title?.trim()
     const description = stripHTML(item.description)
+    if (isFeedError(originalTitle ?? "") || isFeedError(description)) return []
     const isPlaceholder = !originalTitle || originalTitle.startsWith("[No Title]")
     const isLinkOnly = [description, originalTitle].some(value => /^(?:RT[:：]\s*)?https?:\/\//i.test(value ?? ""))
     const title = isLinkOnly
@@ -44,7 +49,7 @@ export function parseTruthSocialFeed(raw: string): NewsItem[] {
     const originalUrl = item["truth:originalUrl"]
     const mirrorUrl = item.link
 
-    return {
+    return [{
       id: item["truth:originalId"] ?? item.guid ?? originalUrl ?? mirrorUrl ?? title,
       title,
       url: originalUrl ?? mirrorUrl ?? "https://truthsocial.com/@realDonaldTrump",
@@ -52,7 +57,7 @@ export function parseTruthSocialFeed(raw: string): NewsItem[] {
       extra: {
         hover: mirrorUrl && originalUrl ? `镜像：${mirrorUrl}` : undefined,
       },
-    }
+    }]
   })
 }
 
