@@ -101,6 +101,27 @@ describe("shared translation acceleration", () => {
     expect(fetchMock).toHaveBeenCalledOnce()
   })
 
+  it("uses the bounded fallback when Google rate-limits the edge worker", async () => {
+    const source = "Fallback provider title 2026"
+    const runtimeCache = {
+      delete: vi.fn(),
+      match: vi.fn(async () => undefined),
+      put: vi.fn(async () => {}),
+    }
+    const fetchMock = vi.fn(async (input: string) => {
+      const url = new URL(input)
+      if (url.hostname === "translate.googleapis.com" || url.hostname === "translate.google.com") {
+        return new Response("rate limited", { status: 429 })
+      }
+      return new Response(JSON.stringify({ responseData: { translatedText: "后备翻译标题" } }))
+    })
+    vi.stubGlobal("caches", { default: runtimeCache })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(translateTextsToChinese([source], "test-rate-limit-fallback")).resolves.toEqual(["后备翻译标题"])
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
   it("fails open and preserves news data when translation providers are unavailable", async () => {
     const item = {
       id: "stable-item",

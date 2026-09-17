@@ -14,7 +14,9 @@ const persistentCacheEntryLimit = 300
 const translationRequestTimeoutMs = 1800
 const translationBudgetMs = 5000
 const translationRetryCooldownMs = 30_000
+const translationProviderCooldownMs = 5 * 60_000
 const failedTranslations = new Map<string, number>()
+const blockedTranslationProviders = new Map<string, number>()
 
 interface RuntimeCache {
   match: (request: Request) => Promise<Response | undefined>
@@ -49,6 +51,15 @@ async function translationFetch(input: string, init: RequestInit, deadline: numb
   } finally {
     clearTimeout(timer)
   }
+}
+
+function decodeMyMemoryText(value: string) {
+  return value
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
 }
 
 function readGoogleTranslateResponse(data: any, texts: string[]) {
@@ -160,12 +171,47 @@ async function writePersistentTranslations(namespace: string | undefined, entrie
   }
 }
 
+async function translateWithMyMemory(texts: string[], deadline: number) {
+  const translated = [...texts]
+  let nextIndex = 0
+  const workerCount = Math.min(4, texts.length)
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextIndex < texts.length) {
+      const index = nextIndex++
+      if (Date.now() >= deadline) continue
+
+      const url = new URL("https://api.mymemory.translated.net/get")
+      url.searchParams.set("q", texts[index])
+      url.searchParams.set("langpair", "en|zh-CN")
+
+      try {
+        const response = await translationFetch(url.toString(), {
+          headers: {
+            "Accept": "application/json",
+            "User-Agent": "NewsNow translation",
+          },
+        }, deadline)
+        if (!response.ok) continue
+        const data = await response.json() as { responseData?: { translatedText?: string } }
+        const value = normalizeTitle(decodeMyMemoryText(String(data.responseData?.translatedText ?? "")))
+        if (value && value !== texts[index] && zhRegExp.test(value)) translated[index] = value
+      } catch {
+        // Keep the original title when the bounded fallback is unavailable.
+      }
+    }
+  })
+  await Promise.all(workers)
+  return translated
+}
+
 async function translateBatch(texts: string[], deadline: number): Promise<string[]> {
   for (const endpoint of [
     "https://translate.googleapis.com/translate_a/single",
     "https://translate.google.com/translate_a/single",
   ]) {
     if (Date.now() >= deadline) break
+    const blockedUntil = blockedTranslationProviders.get(endpoint) ?? 0
+    if (blockedUntil > Date.now()) continue
     const url = new URL(endpoint)
     url.searchParams.set("client", "gtx")
     url.searchParams.set("sl", "auto")
@@ -181,7 +227,12 @@ async function translateBatch(texts: string[], deadline: number): Promise<string
         },
       }, deadline)
       if (!response.ok) {
-        logger.warn(`translation provider ${new URL(endpoint).hostname} returned HTTP ${response.status}`)
+        if (response.status === 429) {
+          blockedTranslationProviders.set(endpoint, Date.now() + translationProviderCooldownMs)
+          logger.warn(`translation provider ${new URL(endpoint).hostname} rate limited; using bounded fallback`)
+        } else {
+          logger.warn(`translation provider ${new URL(endpoint).hostname} returned HTTP ${response.status}`)
+        }
         continue
       }
       const raw = await response.text()
@@ -195,9 +246,10 @@ async function translateBatch(texts: string[], deadline: number): Promise<string
     }
   }
 
-  // Keep source identity and ordering when the provider is unavailable. A
+  const translated = await translateWithMyMemory(texts, deadline)
+  // Keep source identity and ordering when every provider is unavailable. A
   // later request can retry after the cooldown without amplifying traffic.
-  return texts
+  return translated
 }
 
 export async function translateTextsToChinese(texts: string[], persistentCacheNamespace?: string): Promise<string[]> {
