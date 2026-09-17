@@ -174,6 +174,10 @@ async function writePersistentTranslations(namespace: string | undefined, entrie
 async function translateWithMyMemory(texts: string[], deadline: number) {
   const translated = [...texts]
   let nextIndex = 0
+  let successCount = 0
+  let nonOkCount = 0
+  let invalidCount = 0
+  let errorCount = 0
   const workerCount = Math.min(4, texts.length)
   const workers = Array.from({ length: workerCount }, async () => {
     while (nextIndex < texts.length) {
@@ -191,16 +195,26 @@ async function translateWithMyMemory(texts: string[], deadline: number) {
             "User-Agent": "NewsNow translation",
           },
         }, deadline)
-        if (!response.ok) continue
+        if (!response.ok) {
+          nonOkCount += 1
+          continue
+        }
         const data = await response.json() as { responseData?: { translatedText?: string } }
         const value = normalizeTitle(decodeMyMemoryText(String(data.responseData?.translatedText ?? "")))
-        if (value && value !== texts[index] && zhRegExp.test(value)) translated[index] = value
+        if (value && value !== texts[index] && zhRegExp.test(value)) {
+          translated[index] = value
+          successCount += 1
+        } else {
+          invalidCount += 1
+        }
       } catch {
         // Keep the original title when the bounded fallback is unavailable.
+        errorCount += 1
       }
     }
   })
   await Promise.all(workers)
+  logger.warn(`MyMemory fallback translated ${successCount}/${texts.length}; nonOk=${nonOkCount} invalid=${invalidCount} errors=${errorCount}`)
   return translated
 }
 
