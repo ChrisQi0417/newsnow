@@ -1,4 +1,5 @@
 import type { NewsItem } from "@shared/types"
+import { logger } from "#/utils/logger"
 
 const translateCache = new Map<string, string>()
 const zhRegExp = /[\u3400-\u9FFF]/
@@ -180,14 +181,17 @@ async function translateBatch(texts: string[], deadline: number): Promise<string
         },
       }, deadline)
       if (!response.ok) {
+        logger.warn(`translation provider ${new URL(endpoint).hostname} returned HTTP ${response.status}`)
         continue
       }
       const raw = await response.text()
       const data = JSON.parse(raw)
       const translated = readGoogleTranslateResponse(data, texts)
       if (translated.length === texts.length) return translated
+      logger.warn(`translation provider ${new URL(endpoint).hostname} returned ${translated.length}/${texts.length} segments`)
     } catch {
       // Try the alternate Google endpoint before falling back to the source title.
+      logger.warn(`translation provider ${new URL(endpoint).hostname} request failed`)
     }
   }
 
