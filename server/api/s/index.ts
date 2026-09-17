@@ -6,10 +6,14 @@ import { logger } from "#/utils/logger"
 import { getGetter, hasGetter, resolveSourceID } from "#/getters"
 import { getCacheTable } from "#/database/cache"
 import type { CacheInfo } from "#/types"
-import { translateNewsItemsForOutput } from "#/utils/translate"
+import { isChineseOutput, translateNewsItemsForOutput } from "#/utils/translate"
 
 async function readableItems(id: SourceID, items: CacheInfo["items"]) {
-  return translateNewsItemsForOutput(items, id)
+  const translatedItems = await translateNewsItemsForOutput(items, id)
+  return {
+    items: translatedItems,
+    translationComplete: isChineseOutput(translatedItems),
+  }
 }
 
 export default defineEventHandler(async (event): Promise<SourceResponse> => {
@@ -34,22 +38,24 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
         // interval 刷新间隔，对于缓存失效也要执行的。本质上表示本来内容更新就很慢，这个间隔内可能内容压根不会更新。
         // 默认 10 分钟，是低于 TTL 的，但部分 Source 的更新间隔会超过 TTL，甚至有的一天更新一次。
         if (now - cache.updated < sources[id].interval) {
+          const readable = await readableItems(id, cache.items)
           return {
             status: "success",
             id,
             updatedTime: cache.updated,
-            items: await readableItems(id, cache.items),
+            ...readable,
           }
         }
 
         // 而 TTL 缓存失效时间，在时间范围内，就算内容更新了也要用这个缓存。
         // 复用缓存是不会更新时间的。
         if (now - cache.updated < TTL) {
+          const readable = await readableItems(id, cache.items)
           return {
             status: "cache",
             id,
             updatedTime: cache.updated,
-            items: await readableItems(id, cache.items),
+            ...readable,
           }
         }
       }
@@ -59,27 +65,28 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
       const getter = await getGetter(id)
       if (!getter) throw new Error("Invalid source id")
       const fetchedItems = (await getter(event)).slice(0, 30)
-      const newData = await readableItems(id, fetchedItems)
-      if (!newData.length) throw new Error("Source returned no news")
-      if (cacheTable && newData.length) {
-        if (event.context.waitUntil) event.context.waitUntil(cacheTable.set(id, newData))
-        else await cacheTable.set(id, newData)
+      const readable = await readableItems(id, fetchedItems)
+      if (!readable.items.length) throw new Error("Source returned no news")
+      if (cacheTable && readable.items.length) {
+        if (event.context.waitUntil) event.context.waitUntil(cacheTable.set(id, readable.items))
+        else await cacheTable.set(id, readable.items)
       }
       logger.success(`fetch ${id} latest`)
       return {
         status: "success",
         id,
         updatedTime: now,
-        items: newData,
+        ...readable,
       }
     } catch (e) {
       if (cache!) {
+        const readable = await readableItems(id, cache.items)
         return {
           status: "cache",
           refreshError: true,
           id,
           updatedTime: cache.updated,
-          items: await readableItems(id, cache.items),
+          ...readable,
         }
       } else {
         throw e

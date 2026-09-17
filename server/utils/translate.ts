@@ -7,8 +7,13 @@ const latinRegExp = /[A-Z]/i
 const persistentCacheBaseUrl = "https://newsnow-1nq.pages.dev/__internal-cache/translations-v3"
 const persistentCacheMaxAge = 7 * 24 * 60 * 60
 const persistentCacheEntryLimit = 300
-const translationRequestTimeoutMs = 2500
-const translationBudgetMs = 12000
+// Keep the translation path bounded for Cloudflare Pages Functions. A failed
+// provider must fall back quickly instead of consuming the whole request's
+// CPU/resource budget while the source data remains available.
+const translationRequestTimeoutMs = 1800
+const translationBudgetMs = 5000
+const translationRetryCooldownMs = 30_000
+const failedTranslations = new Map<string, number>()
 
 interface RuntimeCache {
   match: (request: Request) => Promise<Response | undefined>
@@ -100,6 +105,10 @@ function shouldTranslate(title: string) {
   return latinRegExp.test(title) && !zhRegExp.test(title)
 }
 
+export function isChineseOutput(items: NewsItem[]) {
+  return items.every(item => !shouldTranslate(normalizeTitle(String(item.title ?? ""))))
+}
+
 function getRuntimeCache() {
   const runtimeCaches = (globalThis as unknown as { caches?: { default?: RuntimeCache } }).caches
   return runtimeCaches?.default
@@ -150,121 +159,10 @@ async function writePersistentTranslations(namespace: string | undefined, entrie
   }
 }
 
-function decodeMyMemoryText(value: string) {
-  return value
-    .replace(/&quot;/g, "\"")
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-}
-
-async function translateWithLingva(texts: string[], deadline: number): Promise<string[]> {
-  const batches: string[][] = []
-  let batch: string[] = []
-  let batchLength = 0
-  for (const text of texts) {
-    const nextLength = batchLength + text.length + (batch.length ? 1 : 0)
-    if (batch.length && (batch.length >= 10 || nextLength > 1400)) {
-      batches.push(batch)
-      batch = []
-      batchLength = 0
-    }
-    batch.push(text)
-    batchLength += text.length + (batch.length > 1 ? 1 : 0)
-  }
-  if (batch.length) batches.push(batch)
-
-  const translated: string[] = []
-
-  for (const [index, batch] of batches.entries()) {
-    if (Date.now() >= deadline) return translated.concat(batches.slice(index).flat())
-    const url = `https://lingva.dialectapp.org/api/v1/en/zh/${encodeURIComponent(batch.join("\n"))}`
-
-    try {
-      const response = await translationFetch(url, {
-        headers: {
-          "Accept": "application/json",
-          "User-Agent": "NewsNow translation",
-        },
-      }, deadline)
-      if (!response.ok) {
-        translated.push(...batch)
-        continue
-      }
-      const data = JSON.parse(await response.text())
-      const rawValue = String(data?.translation ?? "")
-      const lines = rawValue.split(/\r?\n+/).map(normalizeTitle).filter(Boolean)
-      if (lines.length === batch.length && lines.every(Boolean)) {
-        translated.push(...lines)
-      } else if (batch.length === 1 && lines[0] && lines[0] !== batch[0]) {
-        translated.push(lines[0])
-      } else {
-        translated.push(...batch)
-      }
-    } catch {
-      translated.push(...batch)
-    }
-  }
-
-  return translated
-}
-
-async function translateWithMyMemory(texts: string[], deadline: number): Promise<string[]> {
-  const translated: string[] = []
-
-  for (const [index, text] of texts.entries()) {
-    if (Date.now() >= deadline) return translated.concat(texts.slice(index))
-    const url = new URL("https://api.mymemory.translated.net/get")
-    url.searchParams.set("q", text)
-    url.searchParams.set("langpair", "en|zh-CN")
-
-    try {
-      const response = await translationFetch(url.toString(), {
-        headers: {
-          "Accept": "application/json",
-          "User-Agent": "NewsNow translation",
-        },
-      }, deadline)
-      if (!response.ok) {
-        translated.push(text)
-        continue
-      }
-      const data = JSON.parse(await response.text())
-      const value = normalizeTitle(decodeMyMemoryText(String(data?.responseData?.translatedText ?? "")))
-      if (value && value !== text) {
-        translated.push(value)
-      } else {
-        translated.push(text)
-      }
-    } catch {
-      translated.push(text)
-    }
-  }
-
-  return translated
-}
-
-async function translateWithFallback(texts: string[], deadline: number) {
-  const lingva = await translateWithLingva(texts, deadline)
-  const unresolvedIndexes = lingva.flatMap((value, index) => value === texts[index] ? [index] : [])
-  if (!unresolvedIndexes.length) return lingva
-
-  const fallback = await translateWithMyMemory(unresolvedIndexes.map(index => texts[index]), deadline)
-  let fallbackIndex = 0
-  return lingva.map((value, index) => {
-    if (value !== texts[index]) return value
-    return fallback[fallbackIndex++] ?? value
-  })
-}
-
 async function translateBatch(texts: string[], deadline: number): Promise<string[]> {
-  let data: any
   for (const endpoint of [
-    "https://translate.google.com/translate_a/single",
     "https://translate.googleapis.com/translate_a/single",
-    "https://translate.google.co.uk/translate_a/single",
-    "https://translate.google.de/translate_a/single",
+    "https://translate.google.com/translate_a/single",
   ]) {
     if (Date.now() >= deadline) break
     const url = new URL(endpoint)
@@ -285,7 +183,7 @@ async function translateBatch(texts: string[], deadline: number): Promise<string
         continue
       }
       const raw = await response.text()
-      data = JSON.parse(raw)
+      const data = JSON.parse(raw)
       const translated = readGoogleTranslateResponse(data, texts)
       if (translated.length === texts.length) return translated
     } catch {
@@ -293,11 +191,9 @@ async function translateBatch(texts: string[], deadline: number): Promise<string
     }
   }
 
-  const translated = readGoogleTranslateResponse(data, texts)
-  if (translated.length !== texts.length) {
-    return translateWithFallback(texts, deadline)
-  }
-  return translated
+  // Keep source identity and ordering when the provider is unavailable. A
+  // later request can retry after the cooldown without amplifying traffic.
+  return texts
 }
 
 export async function translateTextsToChinese(texts: string[], persistentCacheNamespace?: string): Promise<string[]> {
@@ -312,7 +208,9 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
   )
   const pendingTargets = uniqueTargets.filter((text) => {
     const cached = translateCache.get(text)
-    return !cached || cached === text || !zhRegExp.test(cached)
+    const failedAt = failedTranslations.get(text)
+    return (!cached || cached === text || !zhRegExp.test(cached))
+      && (failedAt === undefined || Date.now() - failedAt >= translationRetryCooldownMs)
   })
 
   const batches: string[][] = []
@@ -320,7 +218,7 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
   let batchLength = 0
   for (const text of pendingTargets) {
     const nextLength = batchLength + text.length + (batch.length ? 1 : 0)
-    if (batch.length && (batch.length >= 20 || nextLength > 1600)) {
+    if (batch.length && (batch.length >= 10 || nextLength > 900)) {
       batches.push(batch)
       batch = []
       batchLength = 0
@@ -350,6 +248,7 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
             // Do not pin a failed translation to the original English title.
             // A later refresh should be able to retry after the provider recovers.
             translateCache.delete(text)
+            failedTranslations.set(text, Date.now())
           }
         })
       } catch (e) {

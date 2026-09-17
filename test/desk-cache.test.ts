@@ -24,6 +24,7 @@ vi.mock("../server/database/cache", () => ({
 }))
 vi.mock("../server/utils/translate", () => ({
   translateNewsItemsForOutput: async (value: Array<{ title: string }>) => value.map(item => ({ ...item, title: `中文：${item.title}` })),
+  isChineseOutput: () => false,
 }))
 
 const { default: handler } = await import("../server/api/s/index")
@@ -58,7 +59,7 @@ describe("desk cache transparency", () => {
     expect(mocks.getter).not.toHaveBeenCalled()
   })
   it("preserves timestamps when hydrating the entire desk", async () => {
-    expect(await entire(event)).toEqual([{ id: "reuters", status: "cache", items: [{ ...items[0], title: "中文：Previously retrieved news" }], updatedTime: updated }])
+    expect(await entire(event)).toEqual([{ id: "reuters", status: "cache", items, translationComplete: false, updatedTime: updated }])
   })
   it("reports a failed latest fetch while retaining readable cached news", async () => {
     mocks.query.latest = "true"

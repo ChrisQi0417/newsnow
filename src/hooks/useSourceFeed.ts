@@ -20,6 +20,7 @@ export function useDeskCache(ids: SourceID[]) {
       if (!Array.isArray(cached)) throw new Error("Invalid desk cache response")
       for (const entry of cached) {
         if (!entry || !ids.includes(entry.id) || !isSourceResponse(entry, entry.id)) continue
+        if (entry.translationComplete === false) continue
         const previous = cacheSources.get(entry.id)
         if (!previous || new Date(previous.updatedTime).getTime() < new Date(entry.updatedTime).getTime()) cacheSources.set(entry.id, entry)
       }
