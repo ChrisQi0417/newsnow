@@ -22,6 +22,9 @@ vi.mock("../server/getters", () => ({
 vi.mock("../server/database/cache", () => ({
   getCacheTable: async () => ({ get: mocks.get, set: mocks.set, getEntire: mocks.getEntire }),
 }))
+vi.mock("../server/utils/translate", () => ({
+  translateNewsItemsForOutput: async (value: Array<{ title: string }>) => value.map(item => ({ ...item, title: `中文：${item.title}` })),
+}))
 
 const { default: handler } = await import("../server/api/s/index")
 const { default: entire } = await import("../server/api/s/entire.post")
@@ -41,7 +44,7 @@ describe("desk cache transparency", () => {
   it("retains cached news and reports failure when upstream returns an empty list", async () => {
     mocks.query.latest = "true"
     mocks.getter.mockResolvedValue([])
-    expect(await handler(event)).toMatchObject({ status: "cache", refreshError: true, updatedTime: updated, items })
+    expect(await handler(event)).toMatchObject({ status: "cache", refreshError: true, updatedTime: updated, items: [{ ...items[0], title: "中文：Previously retrieved news" }] })
     expect(mocks.set).not.toHaveBeenCalled()
   })
   it("rejects an empty response when no readable cache exists", async () => {
@@ -51,16 +54,16 @@ describe("desk cache transparency", () => {
     await expect(handler(event)).rejects.toThrow("Source returned no news")
   })
   it("preserves the real retrieval timestamp on a recent cache hit", async () => {
-    expect(await handler(event)).toMatchObject({ updatedTime: updated, items })
+    expect(await handler(event)).toMatchObject({ updatedTime: updated, items: [{ ...items[0], title: "中文：Previously retrieved news" }] })
     expect(mocks.getter).not.toHaveBeenCalled()
   })
   it("preserves timestamps when hydrating the entire desk", async () => {
-    expect(await entire(event)).toEqual([{ id: "reuters", status: "cache", items, updatedTime: updated }])
+    expect(await entire(event)).toEqual([{ id: "reuters", status: "cache", items: [{ ...items[0], title: "中文：Previously retrieved news" }], updatedTime: updated }])
   })
   it("reports a failed latest fetch while retaining readable cached news", async () => {
     mocks.query.latest = "true"
     mocks.getter.mockRejectedValue(new Error("upstream unavailable"))
-    expect(await handler(event)).toMatchObject({ status: "cache", refreshError: true, updatedTime: updated, items })
+    expect(await handler(event)).toMatchObject({ status: "cache", refreshError: true, updatedTime: updated, items: [{ ...items[0], title: "中文：Previously retrieved news" }] })
   })
   it("clears the fallback error flag after a successful fetch", async () => {
     mocks.query.latest = "true"
@@ -68,6 +71,6 @@ describe("desk cache transparency", () => {
     const result = await handler(event)
     expect(result.status).toBe("success")
     expect(result.refreshError).toBeUndefined()
-    expect(mocks.set).toHaveBeenCalledWith("reuters", items)
+    expect(mocks.set).toHaveBeenCalledWith("reuters", [{ ...items[0], title: "中文：Previously retrieved news" }])
   })
 })

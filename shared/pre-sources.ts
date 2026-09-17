@@ -47,12 +47,12 @@ export const originSources = {
   },
   apple: {
     name: "Apple News",
-    title: "美区精选与 Podcasts",
+    title: "美区精选与播客",
     type: "realtime",
     column: "world",
     color: "rose",
     interval: Time.Fast,
-    desc: "Apple News 美区编辑精选，以及 Apple News Today、Apple News In Conversation 官方 Podcast；英文标题翻译为中文",
+    desc: "Apple News 美区编辑精选，以及 Apple News Today、Apple News In Conversation 官方播客；英文标题统一翻译为中文",
     home: "https://apps.apple.com/us/app/apple-news/id1066498020",
   },
   ai: {
@@ -153,22 +153,22 @@ export const originSources = {
     home: "https://english.news.cn/",
     sub: {
       china: {
-        title: "China",
+        title: "中国",
         type: "realtime",
         column: "china",
       },
       world: {
-        title: "World",
+        title: "国际",
         type: "realtime",
         column: "world",
       },
       business: {
-        title: "Business",
+        title: "商业",
         type: "realtime",
         column: "finance",
       },
       tech: {
-        title: "Sci-Tech",
+        title: "科技",
         type: "realtime",
         column: "tech",
       },
@@ -191,7 +191,7 @@ export const originSources = {
     column: "world",
     color: "red",
     interval: Time.Fast,
-    desc: "Donald Trump Truth Social posts; official Truth Social URL is retained when available",
+    desc: "特朗普 Truth Social 帖子；如有官方 Truth Social 链接则予以保留",
     home: "https://truthsocial.com/@realDonaldTrump",
   },
   reuters: {
@@ -201,14 +201,14 @@ export const originSources = {
     column: "world",
     color: "orange",
     interval: Time.Fast,
-    desc: "Reuters official news sitemap, titles translated to Chinese",
+    desc: "路透社官方新闻 Sitemap；标题统一翻译为中文",
     home: "https://www.reuters.com/",
   },
   apnews: {
     name: "美联社",
     color: "slate",
     interval: Time.Fast,
-    desc: "Associated Press topics via RSSHub, titles translated to Chinese",
+    desc: "通过 RSSHub 聚合美联社专题；标题统一翻译为中文",
     home: "https://apnews.com/",
     sub: {
       "top": {
@@ -255,7 +255,7 @@ export const originSources = {
     name: "BBC新闻",
     color: "red",
     interval: Time.Fast,
-    desc: "BBC News and BBC World Service global news feeds, titles translated to Chinese",
+    desc: "BBC News 与 BBC World Service 全球新闻源；标题统一翻译为中文",
     home: "https://www.bbc.com/news/world",
     sub: {
       world: {
@@ -275,7 +275,7 @@ export const originSources = {
     name: "彭博社",
     color: "orange",
     interval: Time.Fast,
-    desc: "Bloomberg RSS feeds, titles translated to Chinese",
+    desc: "彭博社 RSS 新闻源；标题统一翻译为中文",
     home: "https://www.bloomberg.com/",
     sub: {
       business: {
@@ -312,14 +312,14 @@ export const originSources = {
     column: "finance",
     color: "orange",
     interval: Time.Common,
-    desc: "Financial Times home RSS, titles translated to Chinese",
+    desc: "金融时报首页 RSS；标题统一翻译为中文",
     home: "https://ft.com/",
   },
   wsj: {
     name: "华尔街日报",
     color: "slate",
     interval: Time.Fast,
-    desc: "Dow Jones public Wall Street Journal RSS feeds, titles translated to Chinese",
+    desc: "道琼斯公开的《华尔街日报》 RSS 新闻源；标题统一翻译为中文",
     home: "https://www.wsj.com/news/rss-news-and-feeds",
     sub: {
       news: {
@@ -364,7 +364,7 @@ export const originSources = {
     column: "world",
     color: "blue",
     interval: Time.Common,
-    desc: "France 24 English RSS, titles translated to Chinese",
+    desc: "France 24 英文 RSS；标题统一翻译为中文",
     home: "https://www.france24.com/en/",
   },
   nhk: {
@@ -374,7 +374,7 @@ export const originSources = {
     column: "world",
     color: "red",
     interval: Time.Common,
-    desc: "NHK World English news JSON, titles translated to Chinese",
+    desc: "NHK World 英文新闻 JSON；标题统一翻译为中文",
     home: "https://www3.nhk.or.jp/nhkworld/news/list/",
   },
   economist: {
@@ -384,7 +384,7 @@ export const originSources = {
     column: "world",
     color: "red",
     interval: Time.Common,
-    desc: "The Economist latest RSS, titles translated to Chinese",
+    desc: "《经济学人》最新 RSS；标题统一翻译为中文",
     home: "https://www.economist.com/latest",
   },
   rfi: {
@@ -411,17 +411,17 @@ export const originSources = {
     home: "https://www.scmp.com/",
     sub: {
       news: {
-        title: "News",
+        title: "新闻",
         type: "realtime",
         column: "world",
       },
       china: {
-        title: "China",
+        title: "中国",
         type: "realtime",
         column: "china",
       },
       hongkong: {
-        title: "Hong Kong",
+        title: "香港",
         type: "realtime",
         column: "china",
       },

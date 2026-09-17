@@ -6,6 +6,11 @@ import { logger } from "#/utils/logger"
 import { getGetter, hasGetter, resolveSourceID } from "#/getters"
 import { getCacheTable } from "#/database/cache"
 import type { CacheInfo } from "#/types"
+import { translateNewsItemsForOutput } from "#/utils/translate"
+
+async function readableItems(id: SourceID, items: CacheInfo["items"]) {
+  return translateNewsItemsForOutput(items, id)
+}
 
 export default defineEventHandler(async (event): Promise<SourceResponse> => {
   try {
@@ -33,7 +38,7 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
             status: "success",
             id,
             updatedTime: cache.updated,
-            items: cache.items,
+            items: await readableItems(id, cache.items),
           }
         }
 
@@ -44,7 +49,7 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
             status: "cache",
             id,
             updatedTime: cache.updated,
-            items: cache.items,
+            items: await readableItems(id, cache.items),
           }
         }
       }
@@ -53,7 +58,8 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
     try {
       const getter = await getGetter(id)
       if (!getter) throw new Error("Invalid source id")
-      const newData = (await getter(event)).slice(0, 30)
+      const fetchedItems = (await getter(event)).slice(0, 30)
+      const newData = await readableItems(id, fetchedItems)
       if (!newData.length) throw new Error("Source returned no news")
       if (cacheTable && newData.length) {
         if (event.context.waitUntil) event.context.waitUntil(cacheTable.set(id, newData))
@@ -73,7 +79,7 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
           refreshError: true,
           id,
           updatedTime: cache.updated,
-          items: cache.items,
+          items: await readableItems(id, cache.items),
         }
       } else {
         throw e

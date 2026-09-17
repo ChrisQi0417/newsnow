@@ -30,10 +30,10 @@
     "interval": 300000
   },
   "apple": {
-    "title": "美区精选与 Podcasts",
+    "title": "美区精选与播客",
     "name": "Apple News",
     "type": "realtime",
-    "desc": "Apple News 美区编辑精选，以及 Apple News Today、Apple News In Conversation 官方 Podcast；英文标题翻译为中文",
+    "desc": "Apple News 美区编辑精选，以及 Apple News Today、Apple News In Conversation 官方播客；英文标题统一翻译为中文",
     "column": "world",
     "home": "https://apps.apple.com/us/app/apple-news/id1066498020",
     "color": "rose",
@@ -160,7 +160,7 @@
     "home": "https://english.news.cn/",
     "color": "red",
     "interval": 300000,
-    "title": "China"
+    "title": "中国"
   },
   "xinhua-china": {
     "name": "新华社英文",
@@ -169,7 +169,7 @@
     "home": "https://english.news.cn/",
     "color": "red",
     "interval": 300000,
-    "title": "China"
+    "title": "中国"
   },
   "xinhua-world": {
     "name": "新华社英文",
@@ -178,7 +178,7 @@
     "home": "https://english.news.cn/",
     "color": "red",
     "interval": 300000,
-    "title": "World"
+    "title": "国际"
   },
   "xinhua-business": {
     "name": "新华社英文",
@@ -187,7 +187,7 @@
     "home": "https://english.news.cn/",
     "color": "red",
     "interval": 300000,
-    "title": "Business"
+    "title": "商业"
   },
   "xinhua-tech": {
     "name": "新华社英文",
@@ -196,7 +196,7 @@
     "home": "https://english.news.cn/",
     "color": "red",
     "interval": 300000,
-    "title": "Sci-Tech"
+    "title": "科技"
   },
   "twitter": {
     "title": "Tibo 与 OpenAI",
@@ -212,7 +212,7 @@
     "title": "特朗普发布",
     "name": "特朗普 Truth Social",
     "type": "realtime",
-    "desc": "Donald Trump Truth Social posts; official Truth Social URL is retained when available",
+    "desc": "特朗普 Truth Social 帖子；如有官方 Truth Social 链接则予以保留",
     "column": "world",
     "home": "https://truthsocial.com/@realDonaldTrump",
     "color": "red",
@@ -222,7 +222,7 @@
     "title": "综合",
     "name": "路透社",
     "type": "realtime",
-    "desc": "Reuters official news sitemap, titles translated to Chinese",
+    "desc": "路透社官方新闻 Sitemap；标题统一翻译为中文",
     "column": "world",
     "home": "https://www.reuters.com/",
     "color": "orange",
@@ -232,7 +232,7 @@
     "redirect": "apnews-top",
     "name": "美联社",
     "type": "realtime",
-    "desc": "Associated Press topics via RSSHub, titles translated to Chinese",
+    "desc": "通过 RSSHub 聚合美联社专题；标题统一翻译为中文",
     "column": "world",
     "home": "https://apnews.com/",
     "color": "slate",
@@ -242,7 +242,7 @@
   "apnews-top": {
     "name": "美联社",
     "type": "realtime",
-    "desc": "Associated Press topics via RSSHub, titles translated to Chinese",
+    "desc": "通过 RSSHub 聚合美联社专题；标题统一翻译为中文",
     "column": "world",
     "home": "https://apnews.com/",
     "color": "slate",
@@ -252,7 +252,7 @@
   "apnews-world": {
     "name": "美联社",
     "type": "realtime",
-    "desc": "Associated Press topics via RSSHub, titles translated to Chinese",
+    "desc": "通过 RSSHub 聚合美联社专题；标题统一翻译为中文",
     "column": "world",
     "home": "https://apnews.com/",
     "color": "slate",
@@ -262,7 +262,7 @@
   "apnews-business": {
     "name": "美联社",
     "type": "realtime",
-    "desc": "Associated Press topics via RSSHub, titles translated to Chinese",
+    "desc": "通过 RSSHub 聚合美联社专题；标题统一翻译为中文",
     "column": "finance",
     "home": "https://apnews.com/",
     "color": "slate",
@@ -272,7 +272,7 @@
   "apnews-fact-check": {
     "name": "美联社",
     "type": "realtime",
-    "desc": "Associated Press topics via RSSHub, titles translated to Chinese",
+    "desc": "通过 RSSHub 聚合美联社专题；标题统一翻译为中文",
     "column": "world",
     "home": "https://apnews.com/",
     "color": "slate",
@@ -301,7 +301,7 @@
     "redirect": "bbcnews-world",
     "name": "BBC新闻",
     "type": "realtime",
-    "desc": "BBC News and BBC World Service global news feeds, titles translated to Chinese",
+    "desc": "BBC News 与 BBC World Service 全球新闻源；标题统一翻译为中文",
     "column": "world",
     "home": "https://www.bbc.com/news/world",
     "color": "red",
@@ -311,7 +311,7 @@
   "bbcnews-world": {
     "name": "BBC新闻",
     "type": "realtime",
-    "desc": "BBC News and BBC World Service global news feeds, titles translated to Chinese",
+    "desc": "BBC News 与 BBC World Service 全球新闻源；标题统一翻译为中文",
     "column": "world",
     "home": "https://www.bbc.com/news/world",
     "color": "red",
@@ -321,7 +321,7 @@
   "bbcnews-worldservice": {
     "name": "BBC新闻",
     "type": "realtime",
-    "desc": "BBC News and BBC World Service global news feeds, titles translated to Chinese",
+    "desc": "BBC News 与 BBC World Service 全球新闻源；标题统一翻译为中文",
     "column": "world",
     "home": "https://www.bbc.co.uk/programmes/p02nq0gn",
     "color": "red",
@@ -332,7 +332,7 @@
     "redirect": "bloomberg-business",
     "name": "彭博社",
     "type": "realtime",
-    "desc": "Bloomberg RSS feeds, titles translated to Chinese",
+    "desc": "彭博社 RSS 新闻源；标题统一翻译为中文",
     "column": "finance",
     "home": "https://www.bloomberg.com/",
     "color": "orange",
@@ -342,7 +342,7 @@
   "bloomberg-business": {
     "name": "彭博社",
     "type": "realtime",
-    "desc": "Bloomberg RSS feeds, titles translated to Chinese",
+    "desc": "彭博社 RSS 新闻源；标题统一翻译为中文",
     "column": "finance",
     "home": "https://www.bloomberg.com/",
     "color": "orange",
@@ -352,7 +352,7 @@
   "bloomberg-markets": {
     "name": "彭博社",
     "type": "realtime",
-    "desc": "Bloomberg RSS feeds, titles translated to Chinese",
+    "desc": "彭博社 RSS 新闻源；标题统一翻译为中文",
     "column": "finance",
     "home": "https://www.bloomberg.com/",
     "color": "orange",
@@ -362,7 +362,7 @@
   "bloomberg-economics": {
     "name": "彭博社",
     "type": "realtime",
-    "desc": "Bloomberg RSS feeds, titles translated to Chinese",
+    "desc": "彭博社 RSS 新闻源；标题统一翻译为中文",
     "column": "finance",
     "home": "https://www.bloomberg.com/",
     "color": "orange",
@@ -372,7 +372,7 @@
   "bloomberg-politics": {
     "name": "彭博社",
     "type": "realtime",
-    "desc": "Bloomberg RSS feeds, titles translated to Chinese",
+    "desc": "彭博社 RSS 新闻源；标题统一翻译为中文",
     "column": "world",
     "home": "https://www.bloomberg.com/",
     "color": "orange",
@@ -382,7 +382,7 @@
   "bloomberg-technology": {
     "name": "彭博社",
     "type": "realtime",
-    "desc": "Bloomberg RSS feeds, titles translated to Chinese",
+    "desc": "彭博社 RSS 新闻源；标题统一翻译为中文",
     "column": "tech",
     "home": "https://www.bloomberg.com/",
     "color": "orange",
@@ -393,7 +393,7 @@
     "title": "首页",
     "name": "金融时报",
     "type": "realtime",
-    "desc": "Financial Times home RSS, titles translated to Chinese",
+    "desc": "金融时报首页 RSS；标题统一翻译为中文",
     "column": "finance",
     "home": "https://ft.com/",
     "color": "orange",
@@ -403,7 +403,7 @@
     "redirect": "wsj-news",
     "name": "华尔街日报",
     "type": "realtime",
-    "desc": "Dow Jones public Wall Street Journal RSS feeds, titles translated to Chinese",
+    "desc": "道琼斯公开的《华尔街日报》 RSS 新闻源；标题统一翻译为中文",
     "column": "world",
     "home": "https://www.wsj.com/news/rss-news-and-feeds",
     "color": "slate",
@@ -413,7 +413,7 @@
   "wsj-news": {
     "name": "华尔街日报",
     "type": "realtime",
-    "desc": "Dow Jones public Wall Street Journal RSS feeds, titles translated to Chinese",
+    "desc": "道琼斯公开的《华尔街日报》 RSS 新闻源；标题统一翻译为中文",
     "column": "world",
     "home": "https://www.wsj.com/news/rss-news-and-feeds",
     "color": "slate",
@@ -423,7 +423,7 @@
   "wsj-world": {
     "name": "华尔街日报",
     "type": "realtime",
-    "desc": "Dow Jones public Wall Street Journal RSS feeds, titles translated to Chinese",
+    "desc": "道琼斯公开的《华尔街日报》 RSS 新闻源；标题统一翻译为中文",
     "column": "world",
     "home": "https://www.wsj.com/news/rss-news-and-feeds",
     "color": "slate",
@@ -433,7 +433,7 @@
   "wsj-markets": {
     "name": "华尔街日报",
     "type": "realtime",
-    "desc": "Dow Jones public Wall Street Journal RSS feeds, titles translated to Chinese",
+    "desc": "道琼斯公开的《华尔街日报》 RSS 新闻源；标题统一翻译为中文",
     "column": "finance",
     "home": "https://www.wsj.com/news/rss-news-and-feeds",
     "color": "slate",
@@ -462,7 +462,7 @@
     "title": "国际",
     "name": "France 24",
     "type": "realtime",
-    "desc": "France 24 English RSS, titles translated to Chinese",
+    "desc": "France 24 英文 RSS；标题统一翻译为中文",
     "column": "world",
     "home": "https://www.france24.com/en/",
     "color": "blue",
@@ -472,7 +472,7 @@
     "title": "国际",
     "name": "NHK World",
     "type": "realtime",
-    "desc": "NHK World English news JSON, titles translated to Chinese",
+    "desc": "NHK World 英文新闻 JSON；标题统一翻译为中文",
     "column": "world",
     "home": "https://www3.nhk.or.jp/nhkworld/news/list/",
     "color": "red",
@@ -482,7 +482,7 @@
     "title": "最新",
     "name": "经济学人",
     "type": "realtime",
-    "desc": "The Economist latest RSS, titles translated to Chinese",
+    "desc": "《经济学人》最新 RSS；标题统一翻译为中文",
     "column": "world",
     "home": "https://www.economist.com/latest",
     "color": "red",
@@ -513,7 +513,7 @@
     "home": "https://www.scmp.com/",
     "color": "orange",
     "interval": 1800000,
-    "title": "News"
+    "title": "新闻"
   },
   "scmp-news": {
     "name": "南华早报",
@@ -522,7 +522,7 @@
     "home": "https://www.scmp.com/",
     "color": "orange",
     "interval": 1800000,
-    "title": "News"
+    "title": "新闻"
   },
   "scmp-china": {
     "name": "南华早报",
@@ -531,7 +531,7 @@
     "home": "https://www.scmp.com/",
     "color": "orange",
     "interval": 1800000,
-    "title": "China"
+    "title": "中国"
   },
   "scmp-hongkong": {
     "name": "南华早报",
@@ -540,6 +540,6 @@
     "home": "https://www.scmp.com/",
     "color": "orange",
     "interval": 1800000,
-    "title": "Hong Kong"
+    "title": "香港"
   }
 }

@@ -50,11 +50,24 @@ function readGoogleTranslateResponse(data: any, texts: string[]) {
 
   const parts = data[0].flatMap((part: any) => {
     if (!Array.isArray(part)) return []
-    const translation = normalizeTitle(String(part[0] ?? ""))
-    const source = normalizeTitle(String(part[1] ?? ""))
+    // Keep line breaks intact here. Google often returns one segment for the
+    // entire newline-delimited batch, and those breaks are the only reliable
+    // boundary between titles in that response shape.
+    const translation = String(part[0] ?? "").trim()
+    const source = String(part[1] ?? "").trim()
     return translation && source ? [{ translation, source }] : []
   })
   if (!parts.length) return []
+
+  const sourceLines = parts.flatMap(part => part.source.split(/\r?\n/).map(normalizeTitle).filter(Boolean))
+  const translationLines = parts.flatMap(part => part.translation.split(/\r?\n/).map(normalizeTitle).filter(Boolean))
+  if (
+    sourceLines.length === texts.length
+    && translationLines.length === texts.length
+    && sourceLines.every((source, index) => normalizeTranslationBoundary(source) === normalizeTranslationBoundary(texts[index]))
+  ) {
+    return translationLines
+  }
 
   const results: string[] = []
   let partIndex = 0
@@ -369,4 +382,19 @@ export async function translateNewsItemsToChinese(items: NewsItem[], persistentC
       },
     }
   })
+}
+
+/**
+ * Translate public source output without allowing a translation outage to
+ * turn an otherwise valid source response into an API failure. The returned
+ * items keep their identity, URL, timestamps, ordering, and non-title data.
+ */
+export async function translateNewsItemsForOutput(items: NewsItem[], namespace: string): Promise<NewsItem[]> {
+  if (!items.length) return items
+  try {
+    const translated = await translateNewsItemsToChinese(items, `source:${namespace}`)
+    return translated.length === items.length ? translated : items
+  } catch {
+    return items
+  }
 }
