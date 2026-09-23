@@ -9,7 +9,7 @@ afterEach(() => {
 describe("workers AI translation", () => {
   it("translates with the binding, keeps article identity and reuses translations", async () => {
     const { translateNewsItemsForOutput } = await import("../server/utils/translate")
-    const run = vi.fn(async () => ({ translated_text: "央行维持利率不变" }))
+    const run = vi.fn(async () => ({ choices: [{ message: { content: "{\"0\":\"央行维持利率不变\"}" } }] }))
     const fetchMock = vi.fn()
     vi.stubGlobal("fetch", fetchMock)
     const item = { id: "item", title: "Central bank holds rates steady", url: "https://example.com/news", pubDate: 123 }
@@ -17,34 +17,40 @@ describe("workers AI translation", () => {
     expect(result[0]).toEqual({ ...item, title: "央行维持利率不变", extra: { hover: `原文：${item.title}` } })
     expect(await translateNewsItemsForOutput([item], "bbc-world", { run })).toEqual(result)
     expect(run).toHaveBeenCalledOnce()
-    expect(run).toHaveBeenCalledWith("@cf/meta/m2m100-1.2b", { text: item.title, source_lang: "en", target_lang: "zh" })
+    expect(run).toHaveBeenCalledWith("@cf/qwen/qwen3-30b-a3b-fp8", expect.objectContaining({
+      messages: [expect.objectContaining({ role: "system" }), { role: "user", content: JSON.stringify({ 0: item.title }) }],
+      response_format: { type: "json_object" },
+      temperature: 0,
+    }))
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it("never translates GitHub repository identifiers", async () => {
     const { translateNewsItemsForOutput } = await import("../server/utils/translate")
-    const run = vi.fn(async () => ({ translated_text: "快速编程工具" }))
+    const run = vi.fn(async () => ({ response: { 0: "快速编程工具" } }))
     const result = await translateNewsItemsForOutput([{ id: "repo", title: "owner/repo-name：Fast coding tools", url: "https://github.com/owner/repo-name" }], "github", { run })
     expect(result[0].title).toBe("owner/repo-name：快速编程工具")
-    expect(run.mock.calls[0]).toEqual([expect.any(String), { text: "Fast coding tools", source_lang: "en", target_lang: "zh" }])
+    expect(run.mock.calls[0]).toEqual([expect.any(String), expect.objectContaining({
+      messages: [expect.any(Object), { role: "user", content: "{\"0\":\"Fast coding tools\"}" }],
+    })])
   })
 
-  it("bounds inference concurrency to two and total calls to thirty", async () => {
+  it("bounds inference concurrency to two and total calls to six", async () => {
     const { translateTextsToChinese } = await import("../server/utils/translate")
     let active = 0
     let maximum = 0
-    const run = vi.fn(async () => {
+    const run = vi.fn(async (_model: string, input: Record<string, any>) => {
       active += 1
       maximum = Math.max(maximum, active)
       await new Promise(resolve => setTimeout(resolve, 1))
       active -= 1
-      return { translated_text: "新闻标题" }
+      return { response: Object.fromEntries(Object.keys(JSON.parse(input.messages[1].content)).map(key => [key, "新闻标题"])) }
     })
-    const texts = Array.from({ length: 40 }, (_, index) => `Headline number ${index}`)
+    const texts = Array.from({ length: 80 }, (_, index) => `Headline number ${index}`)
     const result = await translateTextsToChinese(texts, "limits", { run })
-    expect(run).toHaveBeenCalledTimes(30)
+    expect(run).toHaveBeenCalledTimes(6)
     expect(maximum).toBe(2)
-    expect(result.slice(30)).toEqual(texts.slice(30))
+    expect(result.slice(60)).toEqual(texts.slice(60))
   })
 
   it("stops after a quota failure without fanning out to public providers", async () => {
@@ -66,7 +72,7 @@ describe("workers AI translation", () => {
   it("retains originals for invalid responses and long posts without truncation", async () => {
     const { translateTextsToChinese } = await import("../server/utils/translate")
     const run = vi.fn(async () => ({ request_id: "async-is-not-a-translation" }))
-    const texts = ["No translated output", "Long post ".repeat(150)]
+    const texts = ["No translated output", "Long post ".repeat(500)]
     expect(await translateTextsToChinese(texts, "invalid", { run })).toEqual(texts.map(text => text.trim()))
     expect(run).toHaveBeenCalledOnce()
   })
@@ -75,11 +81,20 @@ describe("workers AI translation", () => {
     vi.useFakeTimers()
     const { translateTextsToChinese } = await import("../server/utils/translate")
     const run = vi.fn(() => new Promise(() => {}))
-    const texts = ["Slow first", "Slow second", "Do not start third"]
+    const texts = Array.from({ length: 30 }, (_, index) => `Slow story ${index}`)
     const result = translateTextsToChinese(texts, "timeout", { run })
-    await vi.advanceTimersByTimeAsync(4001)
+    await vi.advanceTimersByTimeAsync(10_001)
     expect(await result).toEqual(texts)
     expect(run).toHaveBeenCalledTimes(2)
+  })
+
+  it("uses exact keys rather than JSON property order and rejects incomplete batches", async () => {
+    const { translateTextsToChinese } = await import("../server/utils/translate")
+    const run = vi.fn(async () => ({ response: "{\"1\":\"第二篇新闻\",\"0\":\"第一篇新闻\"}" }))
+    expect(await translateTextsToChinese(["First headline", "Second headline"], "ordered", { run })).toEqual(["第一篇新闻", "第二篇新闻"])
+    const incomplete = vi.fn(async () => ({ response: "{\"1\":\"不能错配到第一篇\"}" }))
+    const texts = ["Third headline", "Fourth headline"]
+    expect(await translateTextsToChinese(texts, "incomplete", { run: incomplete })).toEqual(texts)
   })
 
   it("defers collector translations to the output stage on Pages", async () => {
