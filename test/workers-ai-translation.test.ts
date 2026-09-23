@@ -19,7 +19,7 @@ describe("workers AI translation", () => {
     expect(run).toHaveBeenCalledOnce()
     expect(run).toHaveBeenCalledWith("@cf/qwen/qwen3-30b-a3b-fp8", expect.objectContaining({
       messages: [expect.objectContaining({ role: "system" }), { role: "user", content: JSON.stringify({ 0: item.title }) }],
-      response_format: { type: "json_object" },
+      response_format: expect.objectContaining({ type: "json_schema" }),
       temperature: 0,
     }))
     expect(fetchMock).not.toHaveBeenCalled()
@@ -33,6 +33,9 @@ describe("workers AI translation", () => {
     expect(run.mock.calls[0]).toEqual([expect.any(String), expect.objectContaining({
       messages: [expect.any(Object), { role: "user", content: "{\"0\":\"Fast coding tools\"}" }],
     })])
+    const bare = { id: "bare", title: "owner/bare-repo", url: "https://github.com/owner/bare-repo" }
+    expect(await translateNewsItemsForOutput([bare], "github", { run })).toEqual([bare])
+    expect(run).toHaveBeenCalledOnce()
   })
 
   it("bounds inference concurrency to two and total calls to six", async () => {
@@ -74,7 +77,7 @@ describe("workers AI translation", () => {
     const run = vi.fn(async () => ({ request_id: "async-is-not-a-translation" }))
     const texts = ["No translated output", "Long post ".repeat(500)]
     expect(await translateTextsToChinese(texts, "invalid", { run })).toEqual(texts.map(text => text.trim()))
-    expect(run).toHaveBeenCalledOnce()
+    expect(run).toHaveBeenCalledTimes(2)
   })
 
   it("returns on timeout without starting more inferences", async () => {
@@ -88,13 +91,16 @@ describe("workers AI translation", () => {
     expect(run).toHaveBeenCalledTimes(2)
   })
 
-  it("uses exact keys rather than JSON property order and rejects incomplete batches", async () => {
+  it("uses exact keys rather than JSON property order and repairs only missing values", async () => {
     const { translateTextsToChinese } = await import("../server/utils/translate")
     const run = vi.fn(async () => ({ response: "{\"1\":\"第二篇新闻\",\"0\":\"第一篇新闻\"}" }))
     expect(await translateTextsToChinese(["First headline", "Second headline"], "ordered", { run })).toEqual(["第一篇新闻", "第二篇新闻"])
-    const incomplete = vi.fn(async () => ({ response: "{\"1\":\"不能错配到第一篇\"}" }))
+    const incomplete = vi.fn()
+      .mockResolvedValueOnce({ response: { 1: "第四篇新闻" } })
+      .mockResolvedValueOnce({ response: { 0: "第三篇新闻" } })
     const texts = ["Third headline", "Fourth headline"]
-    expect(await translateTextsToChinese(texts, "incomplete", { run: incomplete })).toEqual(texts)
+    expect(await translateTextsToChinese(texts, "incomplete", { run: incomplete })).toEqual(["第三篇新闻", "第四篇新闻"])
+    expect(incomplete.mock.calls[1][1].messages[1].content).toBe(JSON.stringify({ 0: texts[0] }))
   })
 
   it("defers collector translations to the output stage on Pages", async () => {
