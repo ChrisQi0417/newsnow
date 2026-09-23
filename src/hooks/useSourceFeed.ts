@@ -65,8 +65,8 @@ export function useSourceFeed(id: SourceID) {
     retry: false,
   })
   const { data, isFetching, isError, refetch } = query
-  const refreshLatest = useCallback(() => {
-    if (document.visibilityState !== "visible" || !navigator.onLine || isFetching || !sourceNeedsRefresh(id, data?.updatedTime)) return
+  const refreshLatest = useCallback((recoverMissing = false) => {
+    if (document.visibilityState !== "visible" || !navigator.onLine || isFetching || (!data && !recoverMissing) || !sourceNeedsRefresh(id, data?.updatedTime)) return
     if (scheduleSourceAutoRefresh(id)) void refetch()
   }, [id, data, isFetching, refetch])
 
@@ -79,15 +79,17 @@ export function useSourceFeed(id: SourceID) {
   }, [data, refreshLatest])
 
   useEffect(() => {
-    const interval = window.setInterval(refreshLatest, sourceRefreshInterval(id))
-    document.addEventListener("visibilitychange", refreshLatest)
-    window.addEventListener("pageshow", refreshLatest)
-    window.addEventListener("online", refreshLatest)
+    const onVisible = () => refreshLatest()
+    const onRecovery = () => refreshLatest(true)
+    const interval = window.setInterval(onRecovery, sourceRefreshInterval(id))
+    document.addEventListener("visibilitychange", onVisible)
+    window.addEventListener("pageshow", onVisible)
+    window.addEventListener("online", onRecovery)
     return () => {
       clearInterval(interval)
-      document.removeEventListener("visibilitychange", refreshLatest)
-      window.removeEventListener("pageshow", refreshLatest)
-      window.removeEventListener("online", refreshLatest)
+      document.removeEventListener("visibilitychange", onVisible)
+      window.removeEventListener("pageshow", onVisible)
+      window.removeEventListener("online", onRecovery)
     }
   }, [id, refreshLatest])
   return query

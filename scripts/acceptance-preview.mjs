@@ -26,7 +26,8 @@ const server = createServer(async (request, response) => {
     console.log(`${request.method} ${url.pathname}${url.search}`)
     const data = url.pathname === "/api/s/entire" ? fixtures.filter(entry => entry.id !== "weather") : url.pathname === "/api/s" ? fixtures.find(entry => entry.id === url.searchParams.get("id")) : {}
     response.writeHead(200, { "Content-Type": "application/json" })
-    response.end(JSON.stringify(data))
+    const fresh = entry => ({ ...entry, updatedTime: Date.now() })
+    response.end(JSON.stringify(Array.isArray(data) ? data.map(fresh) : data?.id ? fresh(data) : data))
     return
   }
   let path = resolve(root, `.${decodeURIComponent(url.pathname)}`)

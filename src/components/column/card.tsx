@@ -106,8 +106,8 @@ function NewsCard({ id, setHandleRef }: NewsCardProps) {
     if (isError && !isFetching) failSourceRefresh(id)
   }, [id, isError, isFetching])
 
-  const refreshLatest = useCallback(() => {
-    if (document.visibilityState !== "visible" || !navigator.onLine || isFetching || !sourceNeedsRefresh(id, data?.updatedTime) || !scheduleSourceAutoRefresh(id)) return
+  const refreshLatest = useCallback((recoverMissing = false) => {
+    if (document.visibilityState !== "visible" || !navigator.onLine || isFetching || (!data && !recoverMissing) || !sourceNeedsRefresh(id, data?.updatedTime) || !scheduleSourceAutoRefresh(id)) return
     void refetch()
   }, [data, id, isFetching, refetch])
 
@@ -116,7 +116,8 @@ function NewsCard({ id, setHandleRef }: NewsCardProps) {
   }, [refreshLatest])
 
   useEffect(() => {
-    const interval = window.setInterval(refreshLatest, sourceRefreshInterval(id))
+    const handleRecovery = () => refreshLatest(true)
+    const interval = window.setInterval(handleRecovery, sourceRefreshInterval(id))
     const handleVisible = () => {
       if (document.visibilityState === "visible") refreshLatest()
     }
@@ -124,12 +125,12 @@ function NewsCard({ id, setHandleRef }: NewsCardProps) {
     document.addEventListener("visibilitychange", handleVisible)
     window.addEventListener("focus", handleVisible)
     window.addEventListener("pageshow", handleVisible)
-    window.addEventListener("online", handleVisible)
+    window.addEventListener("online", handleRecovery)
     return () => {
       document.removeEventListener("visibilitychange", handleVisible)
       window.removeEventListener("focus", handleVisible)
       window.removeEventListener("pageshow", handleVisible)
-      window.removeEventListener("online", handleVisible)
+      window.removeEventListener("online", handleRecovery)
       clearInterval(interval)
     }
   }, [id, refreshLatest])

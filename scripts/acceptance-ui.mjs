@@ -56,7 +56,7 @@ try {
     await page.getByRole("button", { name: "关闭阅读面板" }).click()
     await page.evaluate(() => {
       window.scrollTo({ top: 0, behavior: "instant" })
-      for (const element of document.querySelectorAll("[data-overlayscrollbars-viewport]")) element.scrollTo({ top: 0, behavior: "instant" })
+      for (const element of document.querySelectorAll(".desk-shell, [data-overlayscrollbars-viewport]")) element.scrollTo({ top: 0, behavior: "instant" })
     })
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "No horizontal overflow")
     await page.screenshot({ path: resolve(output, `desktop-${width}.png`) })
@@ -67,6 +67,27 @@ try {
     results.push({ width, publishers: headings.length, categories, initialSourceRequests: 1, repeatedManualRequests: 1, errors })
     await context.close()
   }
+  const recoveryContext = await browser.newContext({ serviceWorkers: "block" })
+  const recoveryPage = await recoveryContext.newPage()
+  let attempts = 0
+  await recoveryPage.route(url => url.pathname === "/api/s" && url.searchParams.get("id") === "weather", async (route) => {
+    attempts += 1
+    if (attempts === 1) await route.fulfill({ status: 503, contentType: "application/json", body: "{}" })
+    else await route.continue()
+  })
+  await recoveryPage.goto("http://127.0.0.1:5187/c/realtime")
+  await recoveryPage.locator(".source-status").filter({ hasText: "来源暂时不可用" }).waitFor({ timeout: 10000 }).catch(async (error) => {
+    console.error({ attempts, statuses: await recoveryPage.locator(".source-status").allTextContents() })
+    throw error
+  })
+  assert.equal(attempts, 1, "An initial failure must not immediately retry")
+  await recoveryContext.setOffline(true)
+  await recoveryPage.getByText("网络已断开，正在显示已加载的内容。恢复连接后自动更新。", { exact: true }).waitFor()
+  await recoveryContext.setOffline(false)
+  await recoveryPage.getByText("384 条已载入", { exact: false }).waitFor()
+  assert.equal(attempts, 2, "A source without cached data must recover when the network returns")
+  results.push({ recoveryWithoutCache: true, attempts })
+  await recoveryContext.close()
   await writeFile(resolve(output, "ui-report.json"), JSON.stringify(results, null, 2))
   console.log(JSON.stringify(results, null, 2))
 } finally {
