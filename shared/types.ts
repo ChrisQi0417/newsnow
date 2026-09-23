@@ -115,6 +115,7 @@ export interface SourceResponse {
   refreshError?: boolean
   /** False means the source data is valid but still needs a translation retry. */
   translationComplete?: boolean
+  translationIssues?: string[]
   id: SourceID
   updatedTime: number | string
   items: NewsItem[]

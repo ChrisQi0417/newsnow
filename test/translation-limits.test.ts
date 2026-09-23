@@ -17,7 +17,7 @@ describe("translation resource limits", () => {
   })
 
   it("cancels error bodies and stops the fallback when its quota is exhausted", async () => {
-    const { translateTextsToChinese } = await import("../server/utils/translate")
+    const { translateTextsToChinese, getTranslationIssues } = await import("../server/utils/translate")
     const cancel = vi.fn()
     const fetchMock = vi.fn(async (input: string) => {
       if (new URL(input).hostname !== "api.mymemory.translated.net") {
@@ -30,6 +30,10 @@ describe("translation resource limits", () => {
     expect(await translateTextsToChinese(titles)).toEqual(titles)
     expect(cancel).toHaveBeenCalledTimes(2)
     expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(getTranslationIssues(titles.map((title, index) => ({ id: index, title, url: "https://example.com" })))).toEqual(expect.arrayContaining([
+      "translate.googleapis.com:http-429",
+      "api.mymemory.translated.net:quota-or-rejected",
+    ]))
   })
 
   it("keeps the timeout active while reading a stalled response body", async () => {

@@ -17,7 +17,7 @@ const translationRequestLimit = 8
 const myMemoryEndpoint = "https://api.mymemory.translated.net/get"
 const translationRetryCooldownMs = 30_000
 const translationProviderCooldownMs = 5 * 60_000
-const failedTranslations = new Map<string, number>()
+const failedTranslations = new Map<string, { at: number, issues: string[] }>()
 const blockedTranslationProviders = new Map<string, number>()
 
 interface RuntimeCache {
@@ -46,11 +46,15 @@ interface TranslationBudget {
   deadline: number
   requests: number
   fallbackRequests: number
+  issues: Set<string>
 }
 
 async function translationFetch(input: string, budget: TranslationBudget) {
   const remaining = budget.deadline - Date.now()
-  if (remaining <= 0 || budget.requests >= translationRequestLimit) throw new Error("translation budget exhausted")
+  if (remaining <= 0 || budget.requests >= translationRequestLimit) {
+    budget.issues.add("request-budget")
+    throw new Error("translation budget exhausted")
+  }
   budget.requests += 1
 
   const controller = new AbortController()
@@ -61,12 +65,16 @@ async function translationFetch(input: string, budget: TranslationBudget) {
       signal: controller.signal,
     })
     if (!response.ok) {
+      budget.issues.add(`${new URL(input).hostname}:http-${response.status}`)
       // Release the connection before trying another provider. Body reads are
       // covered by the same timeout as the headers.
       await response.body?.cancel()
       return { ok: false, status: response.status, data: undefined }
     }
     return { ok: true, status: response.status, data: await response.json() }
+  } catch (error) {
+    budget.issues.add(`${new URL(input).hostname}:${controller.signal.aborted ? "timeout" : "request-failed"}`)
+    throw error
   } finally {
     clearTimeout(timer)
   }
@@ -138,6 +146,10 @@ function shouldTranslate(title: string) {
 
 export function isChineseOutput(items: NewsItem[]) {
   return items.every(item => !shouldTranslate(normalizeTitle(String(item.title ?? ""))))
+}
+
+export function getTranslationIssues(items: NewsItem[]) {
+  return [...new Set(items.flatMap(item => failedTranslations.get(normalizeTitle(String(item.title ?? "")))?.issues ?? []))]
 }
 
 function getRuntimeCache() {
@@ -220,6 +232,7 @@ async function translateWithMyMemory(texts: string[], budget: TranslationBudget)
         }
         const data = response.data as { responseStatus?: number | string, quotaFinished?: boolean, responseData?: { translatedText?: string } }
         if (data.quotaFinished || (data.responseStatus !== undefined && Number(data.responseStatus) !== 200)) {
+          budget.issues.add("api.mymemory.translated.net:quota-or-rejected")
           blockedTranslationProviders.set(myMemoryEndpoint, Date.now() + translationProviderCooldownMs)
           break
         }
@@ -269,6 +282,7 @@ async function translateBatch(texts: string[], budget: TranslationBudget): Promi
       }
       const translated = readGoogleTranslateResponse(response.data, texts)
       if (translated.length === texts.length) return translated
+      budget.issues.add(`${new URL(endpoint).hostname}:invalid-segments`)
       logger.warn(`translation provider ${new URL(endpoint).hostname} returned ${translated.length}/${texts.length} segments`)
     } catch {
       // Try the alternate Google endpoint before falling back to the source title.
@@ -286,7 +300,7 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
   const normalizedTexts = texts.map(text => normalizeTitle(String(text ?? "")))
   const targets = normalizedTexts.filter(text => text && shouldTranslate(text))
   const uniqueTargets = [...new Set(targets)]
-  const budget: TranslationBudget = { deadline: Date.now() + translationBudgetMs, requests: 0, fallbackRequests: 0 }
+  const budget: TranslationBudget = { deadline: Date.now() + translationBudgetMs, requests: 0, fallbackRequests: 0, issues: new Set() }
 
   const persistentEntries = await readPersistentTranslations(
     uniqueTargets.filter(text => !translateCache.has(text)),
@@ -294,7 +308,7 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
   )
   const pendingTargets = uniqueTargets.filter((text) => {
     const cached = translateCache.get(text)
-    const failedAt = failedTranslations.get(text)
+    const failedAt = failedTranslations.get(text)?.at
     return (!cached || cached === text || !zhRegExp.test(cached))
       && (failedAt === undefined || Date.now() - failedAt >= translationRetryCooldownMs)
   })
@@ -325,6 +339,7 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
           const translatedTitle = normalizeTitle(String(translated[index] ?? ""))
           if (translatedTitle && translatedTitle !== text && zhRegExp.test(translatedTitle)) {
             translateCache.set(text, translatedTitle)
+            failedTranslations.delete(text)
             if (zhRegExp.test(translatedTitle)) {
               persistentEntries.delete(text)
               persistentEntries.set(text, translatedTitle)
@@ -334,7 +349,8 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
             // Do not pin a failed translation to the original English title.
             // A later refresh should be able to retry after the provider recovers.
             translateCache.delete(text)
-            failedTranslations.set(text, Date.now())
+            const previous = failedTranslations.get(text)
+            failedTranslations.set(text, { at: Date.now(), issues: budget.issues.size ? [...budget.issues] : previous?.issues ?? ["provider-cooldown"] })
           }
         })
       } catch (e) {

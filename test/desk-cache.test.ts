@@ -25,6 +25,7 @@ vi.mock("../server/database/cache", () => ({
 vi.mock("../server/utils/translate", () => ({
   translateNewsItemsForOutput: async (value: Array<{ title: string }>) => value.map(item => ({ ...item, title: `中文：${item.title}` })),
   isChineseOutput: () => false,
+  getTranslationIssues: () => [],
 }))
 
 const { default: handler } = await import("../server/api/s/index")

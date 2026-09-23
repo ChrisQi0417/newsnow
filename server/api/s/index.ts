@@ -6,7 +6,7 @@ import { logger } from "#/utils/logger"
 import { getGetter, hasGetter, resolveSourceID } from "#/getters"
 import { getCacheTable } from "#/database/cache"
 import type { CacheInfo } from "#/types"
-import { isChineseOutput, translateNewsItemsForOutput } from "#/utils/translate"
+import { getTranslationIssues, isChineseOutput, translateNewsItemsForOutput } from "#/utils/translate"
 
 const inFlightRefreshes = new Map<SourceID, Promise<NewsItem[]>>()
 
@@ -101,6 +101,7 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
         updatedTime: now,
         items: refreshedItems,
         translationComplete: isChineseOutput(refreshedItems),
+        translationIssues: getTranslationIssues(refreshedItems),
       }
     } catch (e) {
       if (cache!) {

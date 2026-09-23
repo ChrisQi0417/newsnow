@@ -50,6 +50,7 @@ async function worker() {
         englishOnlyCount: englishOnly.length,
         englishOnlySample: englishOnly.slice(0, 3),
         translationComplete: data.translationComplete,
+        translationIssues: data.translationIssues,
         invalidTitles,
         refreshError: !!data.refreshError,
         updatedTime: data.updatedTime,
