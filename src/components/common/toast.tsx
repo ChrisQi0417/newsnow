@@ -1,26 +1,26 @@
-import { useCallback, useMemo, useRef } from "react"
-import { useMount, useWindowSize } from "react-use"
+import { useCallback, useRef } from "react"
+import { useMount } from "react-use"
 import { useAutoAnimate } from "@formkit/auto-animate/react"
 import type { ToastItem } from "~/atoms/types"
 import { Timer } from "~/utils"
 
-const WIDTH = 320
 export function Toast() {
-  const { width } = useWindowSize()
-  const center = useMemo(() => {
-    const t = (width - WIDTH) / 2
-    return t > width * 0.9 ? width * 0.9 : t
-  }, [width])
   const toastItems = useAtomValue(toastAtom)
   const [parent] = useAutoAnimate({ duration: 200 })
   return (
     <ol
       ref={parent}
+      aria-live="polite"
       style={{
-        width: WIDTH,
-        left: center,
+        width: 320,
+        maxWidth: "calc(100vw - 32px)",
+        position: "fixed",
+        bottom: 20,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 100,
       }}
-      className="absolute top-4 z-99 flex flex-col gap-2"
+      className="flex flex-col gap-2"
     >
       {
         toastItems.map(k => <Item key={k.id} info={k} />)
@@ -65,6 +65,7 @@ function Item({ info }: { info: ToastItem }) {
 
   return (
     <li
+      style={{ background: "var(--desk-paper)", color: "var(--desk-ink)" }}
       className={$(
         "bg-base rounded-lg shadow-xl relative",
       )}

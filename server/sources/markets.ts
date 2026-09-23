@@ -223,7 +223,7 @@ async function fetchTradingViewQuotes() {
 
 async function fetchTencentQuotes() {
   const symbols = marketConfigs.flatMap(config => config.fallbackSymbol ? [config.fallbackSymbol] : [])
-  const raw = await myFetch<string>(`https://qt.gtimg.cn/q=${symbols.join(",")}`, {
+  const raw = await myFetch<string, "text">(`https://qt.gtimg.cn/q=${symbols.join(",")}`, {
     responseType: "text",
   })
   return parseTencentQuotes(raw)

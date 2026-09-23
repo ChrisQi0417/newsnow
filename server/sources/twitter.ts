@@ -286,7 +286,7 @@ async function fetchVerifiedTiboPosts(account: XAccount) {
 
 async function fetchEmbeddedAccountPosts(account: XAccount) {
   const embedUrl = `https://syndication.twitter.com/srv/timeline-profile/screen-name/${account.handle}`
-  const html = await myFetch<string>(embedUrl, {
+  const html = await myFetch<string, "text">(embedUrl, {
     responseType: "text",
     headers: browserHeaders,
     retry: 1,
@@ -317,7 +317,7 @@ async function fetchAccountPosts(account: XAccount) {
   }
 
   const profileUrl = `https://x.com/${account.handle}`
-  const html = await myFetch<string>(profileUrl, {
+  const html = await myFetch<string, "text">(profileUrl, {
     responseType: "text",
     headers: browserHeaders,
     retry: 1,

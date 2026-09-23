@@ -38,7 +38,7 @@ export class Timer {
 }
 
 export const myFetch = $fetch.create({
-  timeout: 15000,
+  timeout: 45000,
   retry: 0,
   baseURL: "/api",
 })

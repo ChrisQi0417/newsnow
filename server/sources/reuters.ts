@@ -26,7 +26,7 @@ function asArray<T>(value: T | T[] | undefined): T[] {
 }
 
 export default defineSource(async () => {
-  const raw = await myFetch<string>("https://www.reuters.com/arc/outboundfeeds/news-sitemap/?outputType=xml", {
+  const raw = await myFetch<string, "text">("https://www.reuters.com/arc/outboundfeeds/news-sitemap/?outputType=xml", {
     responseType: "text",
   })
   const parser = new XMLParser({

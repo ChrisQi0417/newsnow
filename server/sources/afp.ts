@@ -109,7 +109,7 @@ export function parseAfpFactCheckReader(raw: string): NewsItem[] {
 
 export default defineSource(async (event) => {
   try {
-    const html = await myFetch<string>(newsHubUrl, {
+    const html = await myFetch<string, "text">(newsHubUrl, {
       responseType: "text",
       retry: 1,
       timeout: 8000,
@@ -123,7 +123,7 @@ export default defineSource(async (event) => {
   }
 
   try {
-    const raw = await myFetch<string>(factCheckReaderUrl, {
+    const raw = await myFetch<string, "text">(factCheckReaderUrl, {
       responseType: "text",
       retry: 1,
       timeout: 8000,

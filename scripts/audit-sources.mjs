@@ -36,6 +36,11 @@ async function worker() {
       const englishOnly = titles.filter(title => latinPattern.test(title) && !chinesePattern.test(title))
       const chineseCount = titles.filter(title => chinesePattern.test(title)).length
       const times = items.map(item => new Date(item.pubDate || item.extra?.date || "").getTime()).filter(Number.isFinite)
+      const updated = typeof data.updatedTime === "number" ? data.updatedTime : Date.parse(data.updatedTime)
+      const cacheAgeMs = Number.isFinite(updated) ? Date.now() - updated : null
+      const available = response.ok && ["success", "cache"].includes(data.status) && items.length > 0 && !data.refreshError && invalidTitles.length === 0
+      const cacheFresh = cacheAgeMs !== null && cacheAgeMs >= -60_000 && cacheAgeMs <= Math.max(sources[id].interval, 600_000) + 60_000
+      const chineseComplete = titles.length > 0 && englishOnly.length === 0
       results.push({
         id,
         http: response.status,
@@ -49,8 +54,13 @@ async function worker() {
         refreshError: !!data.refreshError,
         updatedTime: data.updatedTime,
         newest: times.length ? new Date(Math.max(...times)).toISOString() : null,
+        futureDatedCount: times.filter(time => time > Date.now() + 5 * 60_000).length,
+        cacheAgeMs,
+        available,
+        cacheFresh,
+        chineseComplete,
         ms: Date.now() - start,
-        ok: response.ok && ["success", "cache"].includes(data.status) && items.length > 0 && !data.refreshError && invalidTitles.length === 0,
+        ok: available && cacheFresh && chineseComplete,
       })
     } catch (error) {
       results.push({ id, ok: false, error: error.message, ms: Date.now() - start })
@@ -61,4 +71,5 @@ async function worker() {
 }
 await worker()
 await writeFile(outputPath, JSON.stringify({ checkedAt: new Date().toISOString(), base, forceLatest, delayMs, results }, null, 2))
-console.log(JSON.stringify({ total: results.length, passed: results.filter(item => item.ok).length, failed: results.filter(item => !item.ok), newest: results.filter(item => item.ok).map(({ id, newest }) => ({ id, newest })) }, null, 2))
+console.log(JSON.stringify({ total: results.length, available: results.filter(item => item.available).length, cacheFresh: results.filter(item => item.cacheFresh).length, chineseComplete: results.filter(item => item.chineseComplete).length, passed: results.filter(item => item.ok).length, englishHeadlines: results.reduce((sum, item) => sum + (item.englishOnlyCount || 0), 0), failed: results.filter(item => !item.ok) }, null, 2))
+if (results.some(item => !item.ok)) process.exitCode = 1

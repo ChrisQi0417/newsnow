@@ -6,6 +6,12 @@ beforeEach(() => {
 })
 
 describe("automatic source refresh", () => {
+  it("throttles consecutive manual refreshes after the previous one completes", () => {
+    expect(requestSourceRefresh("weather", 1000)).toBe(true)
+    completeSourceRefresh("weather", 1200)
+    expect(requestSourceRefresh("weather", 2000)).toBe(false)
+    expect(requestSourceRefresh("weather", 61_000)).toBe(true)
+  })
   it("schedules stale sources without forcing an upstream refresh", () => {
     expect(scheduleSourceAutoRefresh("weather", 1000)).toBe(true)
     expect(refetchSources.has("weather")).toBe(false)

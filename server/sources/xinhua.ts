@@ -29,7 +29,7 @@ function readItemDate($: ReturnType<typeof load>, element: any, url: string) {
 
 function defineXinhuaSource(url: string) {
   return defineSource(async () => {
-    const html = await myFetch<string>(url, {
+    const html = await myFetch<string, "text">(url, {
       responseType: "text",
     })
     const $ = load(html)

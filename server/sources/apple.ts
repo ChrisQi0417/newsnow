@@ -306,7 +306,7 @@ export function restoreAppleNewsProperNames(originalTitle: string, translatedTit
 
 export default defineSource(async () => {
   const results = await Promise.allSettled(podcastFeeds.map(async (feed) => {
-    const raw = await myFetch<string>(feed.url, {
+    const raw = await myFetch<string, "text">(feed.url, {
       responseType: "text",
       headers: browserHeaders,
       retry: 1,
@@ -317,7 +317,7 @@ export default defineSource(async () => {
   let items = curateAppleNewsItems(results.flatMap(result => result.status === "fulfilled" ? result.value : []))
 
   if (!items.length) {
-    const html = await myFetch<string>(officialPageUrl, {
+    const html = await myFetch<string, "text">(officialPageUrl, {
       responseType: "text",
       headers: browserHeaders,
       retry: 1,

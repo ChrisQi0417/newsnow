@@ -360,7 +360,7 @@ export function restorePiProperNames(originalTitle: string, translatedTitle: str
 }
 
 async function fetchOfficialFeed() {
-  const raw = await myFetch<string>(officialFeedUrl, {
+  const raw = await myFetch<string, "text">(officialFeedUrl, {
     responseType: "text",
     headers: browserHeaders,
     retry: 0,
@@ -370,7 +370,7 @@ async function fetchOfficialFeed() {
 }
 
 async function fetchReaderFeed() {
-  const markdown = await myFetch<string>(readerFeedUrl, {
+  const markdown = await myFetch<string, "text">(readerFeedUrl, {
     responseType: "text",
     retry: 0,
     timeout: 8000,
@@ -379,7 +379,7 @@ async function fetchReaderFeed() {
 }
 
 async function fetchOfficialBlogPage() {
-  const html = await myFetch<string>(officialBlogUrl, {
+  const html = await myFetch<string, "text">(officialBlogUrl, {
     responseType: "text",
     headers: browserHeaders,
     retry: 0,
@@ -389,7 +389,7 @@ async function fetchOfficialBlogPage() {
 }
 
 async function fetchMediaFeed() {
-  const raw = await myFetch<string>(mediaFeedUrl, {
+  const raw = await myFetch<string, "text">(mediaFeedUrl, {
     responseType: "text",
     headers: browserHeaders,
     retry: 0,
@@ -399,7 +399,7 @@ async function fetchMediaFeed() {
 }
 
 async function fetchMediaReaderFeed() {
-  const markdown = await myFetch<string>(mediaReaderFeedUrl, {
+  const markdown = await myFetch<string, "text">(mediaReaderFeedUrl, {
     responseType: "text",
     retry: 0,
     timeout: 8000,
@@ -423,7 +423,7 @@ async function fetchMediaJsonFeeds() {
 
 async function fetchDirectMediaFeeds() {
   const results = await Promise.allSettled(directMediaFeeds.map(async (feed) => {
-    const raw = await myFetch<string>(feed.url, {
+    const raw = await myFetch<string, "text">(feed.url, {
       responseType: "text",
       headers: browserHeaders,
       retry: 0,
@@ -435,10 +435,15 @@ async function fetchDirectMediaFeeds() {
 }
 
 async function fetchMediaItems() {
-  const results = await Promise.allSettled([fetchDirectMediaFeeds(), fetchMediaFeed(), fetchMediaReaderFeed(), fetchMediaJsonFeeds()])
-  const items = curatePiNews(results.flatMap(result => result.status === "fulfilled" ? result.value : []), 15)
-  if (!items.length) throw new Error("Cannot fetch trusted Pi Network media")
-  return items
+  for (const fetchItems of [fetchDirectMediaFeeds, fetchMediaFeed, fetchMediaJsonFeeds, fetchMediaReaderFeed]) {
+    try {
+      const items = await fetchItems()
+      if (items.length) return items
+    } catch {
+      // Try backup indexes only when the direct publishers are unavailable.
+    }
+  }
+  throw new Error("Cannot fetch trusted Pi Network media")
 }
 
 async function fetchOfficialItems() {

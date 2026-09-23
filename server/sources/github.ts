@@ -46,7 +46,7 @@ function readRepo(article: any, $: ReturnType<typeof load>): TrendingRepo | unde
 }
 
 async function fetchTrendingRepos() {
-  const html = await myFetch<string>("https://github.com/trending", {
+  const html = await myFetch<string, "text">("https://github.com/trending", {
     responseType: "text",
   })
   const $ = load(html)

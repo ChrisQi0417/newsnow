@@ -205,7 +205,7 @@ async function fetchOfficialFeed(feed: OfficialFeed) {
 }
 
 async function fetchHTMLSource(name: string, url: string, parser: (html: string) => NewsItem[]) {
-  const html = await myFetch<string>(url, {
+  const html = await myFetch<string, "text">(url, {
     responseType: "text",
     headers: name === "Meta AI" ? { "User-Agent": "Mozilla/5.0" } : undefined,
   })
@@ -215,7 +215,7 @@ async function fetchHTMLSource(name: string, url: string, parser: (html: string)
 }
 
 async function fetchReutersUSAI() {
-  const raw = await myFetch<string>("https://www.reuters.com/arc/outboundfeeds/news-sitemap/?outputType=xml", {
+  const raw = await myFetch<string, "text">("https://www.reuters.com/arc/outboundfeeds/news-sitemap/?outputType=xml", {
     responseType: "text",
   })
   return parseReutersUSAINews(raw).slice(0, 12)

@@ -21,6 +21,7 @@ export function useRefetch() {
     } else {
       const queued = sources.filter(id => requestSourceRefresh(id))
       if (queued.length) updateQuery(...queued)
+      else if (sources.length) toaster("已请求刷新，请间隔一分钟后再试。")
     }
   }, [loggedIn, toaster, login, enableLogin, updateQuery])
 

@@ -23,7 +23,7 @@ describe("shared translation acceleration", () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it("runs cold translation batches with a maximum concurrency of three", async () => {
+  it("runs cold translation batches with a maximum concurrency of two", async () => {
     const sources = Array.from({ length: 6 }, (_, index) => `Cold concurrent title ${index} ${"x".repeat(850)}`)
     let active = 0
     let maxActive = 0
@@ -46,7 +46,7 @@ describe("shared translation acceleration", () => {
     const translated = await translateTextsToChinese(sources, "test-concurrency")
 
     expect(fetchMock).toHaveBeenCalledTimes(sources.length)
-    expect(maxActive).toBe(3)
+    expect(maxActive).toBe(2)
     expect(translated.every(title => title.startsWith("中文："))).toBe(true)
     expect(runtimeCache.match).toHaveBeenCalledOnce()
     expect(runtimeCache.put).toHaveBeenCalledOnce()

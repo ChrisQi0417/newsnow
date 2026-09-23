@@ -37,7 +37,7 @@ export function parseGovCnLatest(data: GovCnLatestItem[]) {
 }
 
 async function fetchPolicyFallback() {
-  const raw = await myFetch<string>("https://www.gov.cn/pushinfo/v150203/pushinfo.jsonp", {
+  const raw = await myFetch<string, "text">("https://www.gov.cn/pushinfo/v150203/pushinfo.jsonp", {
     responseType: "text",
   })
   const start = raw.indexOf("(")

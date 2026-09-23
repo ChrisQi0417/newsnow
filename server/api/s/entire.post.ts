@@ -8,14 +8,13 @@ export default defineEventHandler(async (event) => {
   try {
     const { sources: _ }: { sources: SourceID[] } = await readBody(event)
     const cacheTable = await getCacheTable()
-    const ids = _?.filter(k => sources[k])
+    const ids = Array.isArray(_) ? [...new Set(_.filter(k => sources[k] && k !== "weather"))] : []
     if (ids?.length && cacheTable) {
       const caches = await cacheTable.getEntire(ids)
       return caches.map(cache => ({
         status: "cache",
         id: cache.id,
-        // Desk hydration must stay fast. Incomplete translations are marked
-        // so the client can fetch that source through the bounded /s route.
+        // Hydration never fans out to upstream feeds or translation providers.
         items: cache.items,
         translationComplete: isChineseOutput(cache.items),
         updatedTime: cache.updated,

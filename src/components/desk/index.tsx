@@ -393,7 +393,7 @@ export function Desk({ id }: { id: FixedColumnID }) {
           <div>
             <p className="desk-date">
               {new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" })}
-              <span>GLOBAL BRIEFING</span>
+              <span>全球资讯</span>
             </p>
             <h1>
               {heading}

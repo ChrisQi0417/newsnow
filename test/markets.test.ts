@@ -40,7 +40,7 @@ describe("global market quotes", () => {
       "https://www.tradingview.com/symbols/TVC-DXY/",
       "https://www.tradingview.com/symbols/OANDA-XAUUSD/",
     ])
-    expect(items.every(item => item.extra?.info.endsWith("· 实时"))).toBe(true)
+    expect(items.every(item => typeof item.extra?.info === "string" && item.extra.info.endsWith("· 实时"))).toBe(true)
   })
 
   it("keeps the requested market priority regardless of provider response order", () => {

@@ -145,7 +145,7 @@ export function parseAPNewsPage(html: string, url: string) {
         id: normalizedUrl,
         title,
         url: normalizedUrl,
-        pubDate: Number.isFinite(fragment.pubDate) && fragment.pubDate > 0 ? fragment.pubDate : undefined,
+        pubDate: typeof fragment.pubDate === "number" && Number.isFinite(fragment.pubDate) && fragment.pubDate > 0 ? fragment.pubDate : undefined,
       })
     }
   }
@@ -155,8 +155,8 @@ export function parseAPNewsPage(html: string, url: string) {
 function defineAPNewsSource(url: string) {
   return defineSource(async () => {
     const [pageResult, sitemapResult] = await Promise.allSettled([
-      myFetch<string>(url, { responseType: "text", timeout: 8000, retry: 0 }),
-      myFetch<string>(newsSitemapUrl, { responseType: "text", timeout: 8000, retry: 0 }),
+      myFetch<string, "text">(url, { responseType: "text", timeout: 8000, retry: 0 }),
+      myFetch<string, "text">(newsSitemapUrl, { responseType: "text", timeout: 8000, retry: 0 }),
     ])
     const html = pageResult.status === "fulfilled" ? pageResult.value : ""
     const sitemap = sitemapResult.status === "fulfilled" ? sitemapResult.value : ""
@@ -177,7 +177,7 @@ function defineAPNewsSource(url: string) {
           : url === routes["apnews-fact-check"] ? "\"FACT FOCUS\"" : ""
       const bing = `https://www.bing.com/news/search?q=${encodeURIComponent(`site:apnews.com ${topic}`.trim())}&format=rss&sortbydate=1&count=30`
       try {
-        items = parseAPNewsBing(await myFetch<string>(bing, { responseType: "text", timeout: 4500, retry: 0 }), url)
+        items = parseAPNewsBing(await myFetch<string, "text">(bing, { responseType: "text", timeout: 4500, retry: 0 }), url)
       } catch {
         // Try the independent Google index when Bing is unavailable.
       }
@@ -190,7 +190,7 @@ function defineAPNewsSource(url: string) {
       feed.searchParams.set("ceid", "US:en")
       const feedUrl = feed.href.replace(/\+/g, "%20")
       try {
-        items = parseAPNewsIndex(await myFetch<string>(feedUrl, { responseType: "text", timeout: 4500, retry: 0 }))
+        items = parseAPNewsIndex(await myFetch<string, "text">(feedUrl, { responseType: "text", timeout: 4500, retry: 0 }))
       } catch {
         // The public index can return 503 from some Cloudflare regions.
       }

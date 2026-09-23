@@ -23,7 +23,7 @@ async function fetchFirstAvailable(urls: string[]) {
     try {
       return {
         url,
-        html: await myFetch<string>(url, { responseType: "text" }),
+        html: await myFetch<string, "text">(url, { responseType: "text" }),
       }
     } catch (e) {
       lastError = e

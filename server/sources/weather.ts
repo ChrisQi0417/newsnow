@@ -570,11 +570,11 @@ async function fetchWeather(location: WeatherLocation) {
 }
 
 async function fetchJmaCyclones() {
-  const feed = await myFetch<string>(jmaFeedUrl, { responseType: "text", retry: 1, timeout: 10000 })
+  const feed = await myFetch<string, "text">(jmaFeedUrl, { responseType: "text", retry: 1, timeout: 10000 })
   const entries = parseJmaFeedEntries(feed)
   const results = await Promise.all(entries.map(async (entry) => {
     try {
-      const bulletin = await myFetch<string>(entry.url, { responseType: "text", retry: 1, timeout: 8000 })
+      const bulletin = await myFetch<string, "text">(entry.url, { responseType: "text", retry: 1, timeout: 8000 })
       return parseJmaTyphoonBulletin(bulletin, entry.url)
     } catch (error) {
       logger.warn(`failed to fetch JMA typhoon bulletin ${entry.code}`, error)

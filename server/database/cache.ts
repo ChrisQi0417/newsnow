@@ -59,7 +59,10 @@ export class EdgeCache {
   }
 
   async getEntire(keys: string[]): Promise<CacheInfo[]> {
-    const results = await Promise.all(keys.map(key => this.get(key)))
+    const results: Array<CacheInfo | undefined> = []
+    for (let index = 0; index < keys.length; index += 4) {
+      results.push(...await Promise.all(keys.slice(index, index + 4).map(key => this.get(key))))
+    }
     return results.filter((cache): cache is CacheInfo => Boolean(cache))
   }
 

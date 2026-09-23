@@ -62,12 +62,11 @@ export function useSourceFeed(id: SourceID) {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
-    retry: 1,
-    retryDelay: 1500,
+    retry: false,
   })
   const { data, isFetching, isError, refetch } = query
   const refreshLatest = useCallback(() => {
-    if (document.visibilityState !== "visible" || !navigator.onLine || isFetching || !data || !sourceNeedsRefresh(id, data.updatedTime)) return
+    if (document.visibilityState !== "visible" || !navigator.onLine || isFetching || !sourceNeedsRefresh(id, data?.updatedTime)) return
     if (scheduleSourceAutoRefresh(id)) void refetch()
   }, [id, data, isFetching, refetch])
 

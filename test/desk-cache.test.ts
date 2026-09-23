@@ -36,12 +36,19 @@ let updated: number
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.query = { id: "reuters" }
-  updated = Date.now() - 30_000
+  updated = Date.now() - 120_000
   mocks.get.mockResolvedValue({ id: "reuters", items, updated })
   mocks.getEntire.mockResolvedValue([{ id: "reuters", items, updated }])
 })
 
 describe("desk cache transparency", () => {
+  it("reuses a just-refreshed source during the manual refresh cooldown", async () => {
+    mocks.query.latest = "true"
+    const recent = Date.now() - 10_000
+    mocks.get.mockResolvedValue({ id: "reuters", items, updated: recent })
+    expect(await handler(event)).toMatchObject({ updatedTime: recent, items })
+    expect(mocks.getter).not.toHaveBeenCalled()
+  })
   it("retains cached news and reports failure when upstream returns an empty list", async () => {
     mocks.query.latest = "true"
     mocks.getter.mockResolvedValue([])

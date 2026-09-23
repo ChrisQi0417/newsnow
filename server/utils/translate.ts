@@ -11,8 +11,10 @@ const persistentCacheEntryLimit = 300
 // Keep the translation path bounded for Cloudflare Pages Functions. A failed
 // provider must fall back quickly instead of consuming the whole request's
 // CPU/resource budget while the source data remains available.
-const translationRequestTimeoutMs = 1800
-const translationBudgetMs = 5000
+const translationRequestTimeoutMs = 4000
+const translationBudgetMs = 12000
+const translationRequestLimit = 8
+const myMemoryEndpoint = "https://api.mymemory.translated.net/get"
 const translationRetryCooldownMs = 30_000
 const translationProviderCooldownMs = 5 * 60_000
 const failedTranslations = new Map<string, number>()
@@ -40,14 +42,31 @@ function normalizeTranslationBoundary(value: string) {
     .toLocaleLowerCase()
 }
 
-async function translationFetch(input: string, init: RequestInit, deadline: number) {
-  const remaining = deadline - Date.now()
-  if (remaining <= 0) throw new Error("translation deadline exceeded")
+interface TranslationBudget {
+  deadline: number
+  requests: number
+  fallbackRequests: number
+}
+
+async function translationFetch(input: string, budget: TranslationBudget) {
+  const remaining = budget.deadline - Date.now()
+  if (remaining <= 0 || budget.requests >= translationRequestLimit) throw new Error("translation budget exhausted")
+  budget.requests += 1
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), Math.min(translationRequestTimeoutMs, remaining))
   try {
-    return await fetch(input, { ...init, signal: controller.signal })
+    const response = await fetch(input, {
+      headers: { "Accept": "application/json", "User-Agent": "NewsNow translation" },
+      signal: controller.signal,
+    })
+    if (!response.ok) {
+      // Release the connection before trying another provider. Body reads are
+      // covered by the same timeout as the headers.
+      await response.body?.cancel()
+      return { ok: false, status: response.status, data: undefined }
+    }
+    return { ok: true, status: response.status, data: await response.json() }
   } finally {
     clearTimeout(timer)
   }
@@ -171,35 +190,39 @@ async function writePersistentTranslations(namespace: string | undefined, entrie
   }
 }
 
-async function translateWithMyMemory(texts: string[], deadline: number) {
+async function translateWithMyMemory(texts: string[], budget: TranslationBudget) {
   const translated = [...texts]
   let nextIndex = 0
   let successCount = 0
   let nonOkCount = 0
   let invalidCount = 0
   let errorCount = 0
-  const workerCount = Math.min(4, texts.length)
+  const workerCount = 1
   const workers = Array.from({ length: workerCount }, async () => {
     while (nextIndex < texts.length) {
       const index = nextIndex++
-      if (Date.now() >= deadline) continue
+      if (Date.now() >= budget.deadline || budget.requests >= translationRequestLimit || budget.fallbackRequests >= 4) break
+      if ((blockedTranslationProviders.get(myMemoryEndpoint) ?? 0) > Date.now()) break
+      // MyMemory's free endpoint accepts at most 500 UTF-8 bytes per query.
+      if (new TextEncoder().encode(texts[index]).length > 500) continue
 
-      const url = new URL("https://api.mymemory.translated.net/get")
+      const url = new URL(myMemoryEndpoint)
       url.searchParams.set("q", texts[index])
       url.searchParams.set("langpair", "en|zh-CN")
 
       try {
-        const response = await translationFetch(url.toString(), {
-          headers: {
-            "Accept": "application/json",
-            "User-Agent": "NewsNow translation",
-          },
-        }, deadline)
+        budget.fallbackRequests += 1
+        const response = await translationFetch(url.toString(), budget)
         if (!response.ok) {
           nonOkCount += 1
+          if ([403, 429].includes(response.status)) blockedTranslationProviders.set(myMemoryEndpoint, Date.now() + translationProviderCooldownMs)
           continue
         }
-        const data = await response.json() as { responseData?: { translatedText?: string } }
+        const data = response.data as { responseStatus?: number | string, quotaFinished?: boolean, responseData?: { translatedText?: string } }
+        if (data.quotaFinished || (data.responseStatus !== undefined && Number(data.responseStatus) !== 200)) {
+          blockedTranslationProviders.set(myMemoryEndpoint, Date.now() + translationProviderCooldownMs)
+          break
+        }
         const value = normalizeTitle(decodeMyMemoryText(String(data.responseData?.translatedText ?? "")))
         if (value && value !== texts[index] && zhRegExp.test(value)) {
           translated[index] = value
@@ -218,12 +241,12 @@ async function translateWithMyMemory(texts: string[], deadline: number) {
   return translated
 }
 
-async function translateBatch(texts: string[], deadline: number): Promise<string[]> {
+async function translateBatch(texts: string[], budget: TranslationBudget): Promise<string[]> {
   for (const endpoint of [
     "https://translate.googleapis.com/translate_a/single",
     "https://translate.google.com/translate_a/single",
   ]) {
-    if (Date.now() >= deadline) break
+    if (Date.now() >= budget.deadline || budget.requests >= translationRequestLimit) break
     const blockedUntil = blockedTranslationProviders.get(endpoint) ?? 0
     if (blockedUntil > Date.now()) continue
     const url = new URL(endpoint)
@@ -234,12 +257,7 @@ async function translateBatch(texts: string[], deadline: number): Promise<string
     url.searchParams.set("q", texts.join("\n"))
 
     try {
-      const response = await translationFetch(url.toString(), {
-        headers: {
-          "Accept": "application/json,text/plain,*/*",
-          "User-Agent": "NewsNow translation",
-        },
-      }, deadline)
+      const response = await translationFetch(url.toString(), budget)
       if (!response.ok) {
         if (response.status === 429) {
           blockedTranslationProviders.set(endpoint, Date.now() + translationProviderCooldownMs)
@@ -249,9 +267,7 @@ async function translateBatch(texts: string[], deadline: number): Promise<string
         }
         continue
       }
-      const raw = await response.text()
-      const data = JSON.parse(raw)
-      const translated = readGoogleTranslateResponse(data, texts)
+      const translated = readGoogleTranslateResponse(response.data, texts)
       if (translated.length === texts.length) return translated
       logger.warn(`translation provider ${new URL(endpoint).hostname} returned ${translated.length}/${texts.length} segments`)
     } catch {
@@ -260,7 +276,7 @@ async function translateBatch(texts: string[], deadline: number): Promise<string
     }
   }
 
-  const translated = await translateWithMyMemory(texts, deadline)
+  const translated = await translateWithMyMemory(texts, budget)
   // Keep source identity and ordering when every provider is unavailable. A
   // later request can retry after the cooldown without amplifying traffic.
   return translated
@@ -270,7 +286,7 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
   const normalizedTexts = texts.map(text => normalizeTitle(String(text ?? "")))
   const targets = normalizedTexts.filter(text => text && shouldTranslate(text))
   const uniqueTargets = [...new Set(targets)]
-  const deadline = Date.now() + translationBudgetMs
+  const budget: TranslationBudget = { deadline: Date.now() + translationBudgetMs, requests: 0, fallbackRequests: 0 }
 
   const persistentEntries = await readPersistentTranslations(
     uniqueTargets.filter(text => !translateCache.has(text)),
@@ -300,11 +316,11 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
 
   let persistentCacheChanged = false
   let nextBatchIndex = 0
-  const workers = Array.from({ length: Math.min(3, batches.length) }, async () => {
+  const workers = Array.from({ length: Math.min(2, batches.length) }, async () => {
     while (nextBatchIndex < batches.length) {
       const currentBatch = batches[nextBatchIndex++]
       try {
-        const translated = await translateBatch(currentBatch, deadline)
+        const translated = await translateBatch(currentBatch, budget)
         currentBatch.forEach((text, index) => {
           const translatedTitle = normalizeTitle(String(translated[index] ?? ""))
           if (translatedTitle && translatedTitle !== text && zhRegExp.test(translatedTitle)) {

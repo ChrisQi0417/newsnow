@@ -1,11 +1,12 @@
 import type { SourceID, SourceResponse } from "@shared/types"
-import { TTL } from "@shared/consts"
+import { ManualRefreshCooldown, TTL } from "@shared/consts"
 import { sources } from "@shared/sources"
 
 export const cacheSources = new Map<SourceID, SourceResponse>()
 export const refetchSources = new Set<SourceID>()
 
 const sourceAutoRefreshTimes = new Map<SourceID, number>()
+const manualRefreshTimes = new Map<SourceID, number>()
 const sourceRequestConcurrency = 1
 const sourceRequestMinStartGap = 1500
 const sourceRequestWaiters: Array<() => void> = []
@@ -35,6 +36,9 @@ export function scheduleSourceAutoRefresh(id: SourceID, now = Date.now()) {
 
 export function requestSourceRefresh(id: SourceID, now = Date.now()) {
   if (refetchSources.has(id)) return false
+  const lastManualRefresh = manualRefreshTimes.get(id)
+  if (lastManualRefresh !== undefined && now - lastManualRefresh < ManualRefreshCooldown) return false
+  manualRefreshTimes.set(id, now)
   sourceAutoRefreshTimes.set(id, now)
   refetchSources.add(id)
   return true
@@ -51,6 +55,7 @@ export function failSourceRefresh(id: SourceID) {
 
 export function resetSourceRefreshState() {
   sourceAutoRefreshTimes.clear()
+  manualRefreshTimes.clear()
   refetchSources.clear()
   nextSourceRequestAt = 0
 }

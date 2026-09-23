@@ -71,9 +71,9 @@ export function parseNikkeiNewsSitemap(raw: string): NewsItem[] {
 
 export default defineSource(async (event) => {
   try {
-    const index = await myFetch<string>(newsSitemapIndex, { responseType: "text" })
+    const index = await myFetch<string, "text">(newsSitemapIndex, { responseType: "text" })
     const urls = discoverNikkeiNewsSitemaps(index)
-    const results = await Promise.allSettled(urls.map(url => myFetch<string>(url, { responseType: "text" })))
+    const results = await Promise.allSettled(urls.map(url => myFetch<string, "text">(url, { responseType: "text" })))
     const items = results.flatMap(result => result.status === "fulfilled" ? parseNikkeiNewsSitemap(result.value) : [])
     const unique = [...new Map(items.map(item => [item.id, item])).values()]
       .sort((a, b) => Number(b.pubDate) - Number(a.pubDate))

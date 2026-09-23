@@ -1,7 +1,7 @@
 import type { NewsItem, SourceID, SourceResponse } from "@shared/types"
 import { type H3Event, createError, defineEventHandler, getQuery, setHeader } from "h3"
 import { sources } from "@shared/sources"
-import { TTL } from "@shared/consts"
+import { ManualRefreshCooldown, TTL } from "@shared/consts"
 import { logger } from "#/utils/logger"
 import { getGetter, hasGetter, resolveSourceID } from "#/getters"
 import { getCacheTable } from "#/database/cache"
@@ -68,9 +68,9 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
     let cache: CacheInfo | undefined
     if (cacheTable) {
       cache = await cacheTable.get(id)
-      // An explicit latest request is the refresh button contract. Do not let
-      // the normal interval/TTL cache path hide fresh source data from it.
-      if (cache && !latest) {
+      // Manual refresh bypasses the ordinary cadence, but repeated clicks
+      // within a minute reuse the completed fetch across users of this cache.
+      if (cache && (!latest || now - cache.updated < ManualRefreshCooldown)) {
         // Respect each source's collection cadence before contacting its upstream.
         if (now - cache.updated < sources[id].interval) {
           return {

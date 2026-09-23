@@ -99,8 +99,7 @@ function NewsCard({ id, setHandleRef }: NewsCardProps) {
     refetchOnMount: false,
     refetchOnReconnect: false,
     refetchOnWindowFocus: false,
-    retry: 2,
-    retryDelay: attempt => 500 * (attempt + 1),
+    retry: false,
   })
 
   useEffect(() => {
@@ -108,7 +107,7 @@ function NewsCard({ id, setHandleRef }: NewsCardProps) {
   }, [id, isError, isFetching])
 
   const refreshLatest = useCallback(() => {
-    if (!data || isFetching || !sourceNeedsRefresh(id, data.updatedTime) || !scheduleSourceAutoRefresh(id)) return
+    if (document.visibilityState !== "visible" || !navigator.onLine || isFetching || !sourceNeedsRefresh(id, data?.updatedTime) || !scheduleSourceAutoRefresh(id)) return
     void refetch()
   }, [data, id, isFetching, refetch])
 
@@ -125,10 +124,12 @@ function NewsCard({ id, setHandleRef }: NewsCardProps) {
     document.addEventListener("visibilitychange", handleVisible)
     window.addEventListener("focus", handleVisible)
     window.addEventListener("pageshow", handleVisible)
+    window.addEventListener("online", handleVisible)
     return () => {
       document.removeEventListener("visibilitychange", handleVisible)
       window.removeEventListener("focus", handleVisible)
       window.removeEventListener("pageshow", handleVisible)
+      window.removeEventListener("online", handleVisible)
       clearInterval(interval)
     }
   }, [id, refreshLatest])

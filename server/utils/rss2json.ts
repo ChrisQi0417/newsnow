@@ -105,7 +105,7 @@ export function parseRSSXML(data: string, limit?: number): RSSInfo | undefined {
 export async function rss2json(url: string, limit?: number): Promise<RSSInfo | undefined> {
   if (!/^https?:\/\/[^\s$.?#].\S*/i.test(url)) return
 
-  const data = await myFetch<string>(url, {
+  const data = await myFetch<string, "text">(url, {
     responseType: "text",
   })
   return parseRSSXML(data, limit)
