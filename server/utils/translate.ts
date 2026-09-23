@@ -19,6 +19,12 @@ const translationRetryCooldownMs = 30_000
 const translationProviderCooldownMs = 5 * 60_000
 const failedTranslations = new Map<string, { at: number, issues: string[] }>()
 const blockedTranslationProviders = new Map<string, number>()
+const workersAiModel = "@cf/meta/m2m100-1.2b"
+const workersAiRequestLimit = 30
+
+export interface TranslationAI {
+  run: (model: string, input: { text: string, source_lang: string, target_lang: string }) => Promise<unknown>
+}
 
 interface RuntimeCache {
   match: (request: Request) => Promise<Response | undefined>
@@ -296,7 +302,48 @@ async function translateBatch(texts: string[], budget: TranslationBudget): Promi
   return translated
 }
 
-export async function translateTextsToChinese(texts: string[], persistentCacheNamespace?: string): Promise<string[]> {
+async function translateWithWorkersAI(text: string, ai: TranslationAI, budget: TranslationBudget) {
+  if (Date.now() >= budget.deadline || budget.requests >= workersAiRequestLimit) {
+    budget.issues.add("workers-ai:request-budget")
+    return text
+  }
+  if ((blockedTranslationProviders.get(workersAiModel) ?? 0) > Date.now()) {
+    budget.issues.add("workers-ai:cooldown")
+    return text
+  }
+  // The model is a sentence translator, not a summarizer. Never silently
+  // truncate long posts to fit its input window.
+  if (text.length > 1200) {
+    budget.issues.add("workers-ai:input-too-long")
+    return text
+  }
+  budget.requests += 1
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const data = await Promise.race([
+      ai.run(workersAiModel, { text, source_lang: "en", target_lang: "zh" }),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error("translation timeout")), Math.min(4000, budget.deadline - Date.now()))
+      }),
+    ]) as { translated_text?: unknown }
+    const translated = typeof data?.translated_text === "string" ? normalizeTitle(data.translated_text) : ""
+    if (translated && translated !== text && zhRegExp.test(translated)) return translated
+    budget.issues.add("workers-ai:invalid-output")
+  } catch (error) {
+    // A binding call cannot be cancelled here. Stop this run on the first
+    // failure rather than accumulating timed-out inference requests.
+    budget.deadline = 0
+    blockedTranslationProviders.set(workersAiModel, Date.now() + translationProviderCooldownMs)
+    const message = error instanceof Error ? error.message : ""
+    const reason = /quota|limit|429/i.test(message) ? "quota" : /timeout/i.test(message) ? "timeout" : "unavailable"
+    budget.issues.add(`workers-ai:${reason}`)
+  } finally {
+    clearTimeout(timer)
+  }
+  return text
+}
+
+export async function translateTextsToChinese(texts: string[], persistentCacheNamespace?: string, ai?: TranslationAI): Promise<string[]> {
   const normalizedTexts = texts.map(text => normalizeTitle(String(text ?? "")))
   const targets = normalizedTexts.filter(text => text && shouldTranslate(text))
   const uniqueTargets = [...new Set(targets)]
@@ -318,7 +365,7 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
   let batchLength = 0
   for (const text of pendingTargets) {
     const nextLength = batchLength + text.length + (batch.length ? 1 : 0)
-    if (batch.length && (batch.length >= 10 || nextLength > 900)) {
+    if (batch.length && (batch.length >= (ai ? 1 : 10) || nextLength > 900)) {
       batches.push(batch)
       batch = []
       batchLength = 0
@@ -334,7 +381,9 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
     while (nextBatchIndex < batches.length) {
       const currentBatch = batches[nextBatchIndex++]
       try {
-        const translated = await translateBatch(currentBatch, budget)
+        const translated = ai
+          ? [await translateWithWorkersAI(currentBatch[0], ai, budget)]
+          : await translateBatch(currentBatch, budget)
         currentBatch.forEach((text, index) => {
           const translatedTitle = normalizeTitle(String(translated[index] ?? ""))
           if (translatedTitle && translatedTitle !== text && zhRegExp.test(translatedTitle)) {
@@ -367,13 +416,27 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
   return normalizedTexts.map(text => translateCache.get(text) ?? text)
 }
 
-export async function translateNewsItemsToChinese(items: NewsItem[], persistentCacheNamespace?: string): Promise<NewsItem[]> {
-  await translateTextsToChinese(items.slice(0, 30).map(item => String(item.title ?? "")), persistentCacheNamespace)
+export async function translateCollectedTextsToChinese(texts: string[], namespace?: string) {
+  // Pages output has access to the request's AI binding. Defer collection-time
+  // translation there so each source gets one budget, not two provider chains.
+  return getRuntimeCache() ? texts : translateTextsToChinese(texts, namespace)
+}
 
-  return items.map((item) => {
+export async function translateNewsItemsToChinese(items: NewsItem[], persistentCacheNamespace?: string): Promise<NewsItem[]> {
+  if (getRuntimeCache()) return items
+  return translateOutputItems(items, persistentCacheNamespace)
+}
+
+async function translateOutputItems(items: NewsItem[], namespace?: string, ai?: TranslationAI): Promise<NewsItem[]> {
+  const titles = items.slice(0, 30).map(item => normalizeTitle(String(item.title ?? "")))
+  const prefixes = titles.map(title => namespace === "source:github" ? title.match(/^[\w.-]+\/[\w.-]+：/)?.[0] ?? "" : "")
+  const texts = titles.map((title, index) => title.slice(prefixes[index].length))
+  const translated = await translateTextsToChinese(texts, namespace, ai)
+
+  return items.map((item, index) => {
     const originalTitle = normalizeTitle(String(item.title ?? ""))
-    const translatedTitle = translateCache.get(originalTitle)
-    if (!translatedTitle || translatedTitle === originalTitle) return item
+    if (index >= texts.length || translated[index] === texts[index]) return item
+    const translatedTitle = prefixes[index] + translated[index]
     return {
       ...item,
       title: translatedTitle,
@@ -390,10 +453,10 @@ export async function translateNewsItemsToChinese(items: NewsItem[], persistentC
  * turn an otherwise valid source response into an API failure. The returned
  * items keep their identity, URL, timestamps, ordering, and non-title data.
  */
-export async function translateNewsItemsForOutput(items: NewsItem[], namespace: string): Promise<NewsItem[]> {
+export async function translateNewsItemsForOutput(items: NewsItem[], namespace: string, ai?: TranslationAI): Promise<NewsItem[]> {
   if (!items.length) return items
   try {
-    const translated = await translateNewsItemsToChinese(items, `source:${namespace}`)
+    const translated = await translateOutputItems(items, `source:${namespace}`, ai)
     return translated.length === items.length ? translated : items
   } catch {
     return items

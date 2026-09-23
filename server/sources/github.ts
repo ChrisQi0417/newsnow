@@ -1,6 +1,6 @@
 import { load } from "cheerio"
 import type { NewsItem } from "@shared/types"
-import { translateTextsToChinese } from "../utils/translate"
+import { translateCollectedTextsToChinese } from "../utils/translate"
 
 interface TrendingRepo {
   repo: string
@@ -88,7 +88,7 @@ export default defineSource(async () => {
 
   if (!repos.length) throw new Error("Cannot fetch GitHub trending repositories")
 
-  const translatedDescriptions = await translateTextsToChinese(repos.map(repo => repo.description), "github")
+  const translatedDescriptions = await translateCollectedTextsToChinese(repos.map(repo => repo.description), "github")
   const items: NewsItem[] = repos.map((repo, index) => {
     const description = translatedDescriptions[index] || repo.description
     return {

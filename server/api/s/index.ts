@@ -10,8 +10,10 @@ import { getTranslationIssues, isChineseOutput, translateNewsItemsForOutput } fr
 
 const inFlightRefreshes = new Map<SourceID, Promise<NewsItem[]>>()
 
-async function readableItems(id: SourceID, items: CacheInfo["items"]) {
-  const translatedItems = await translateNewsItemsForOutput(items, id)
+async function readableItems(id: SourceID, items: CacheInfo["items"], event: H3Event) {
+  const binding = event.context.cloudflare?.env?.AI
+  const ai = typeof binding?.run === "function" ? binding : undefined
+  const translatedItems = await translateNewsItemsForOutput(items, id, ai)
   return {
     items: translatedItems,
     translationComplete: isChineseOutput(translatedItems),
@@ -30,7 +32,7 @@ async function refreshSource(id: SourceID, event: H3Event, cacheTable: Awaited<R
     const getter = await getGetter(id)
     if (!getter) throw new Error("Invalid source id")
     const fetchedItems = (await getter(event)).slice(0, 30)
-    const readable = await readableItems(id, fetchedItems)
+    const readable = await readableItems(id, fetchedItems, event)
     if (!readable.items.length) throw new Error("Source returned no news")
     if (cacheTable && id !== "weather") {
       await cacheTable.set(id, readable.items)
