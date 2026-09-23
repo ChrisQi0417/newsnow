@@ -6,7 +6,7 @@ import { metadata } from "@shared/metadata"
 import { currentColumnIDAtom, currentSourcesAtom, focusSourcesAtom } from "~/atoms"
 import { deskLayoutAtom, readArticlesAtom, savedArticlesAtom } from "~/atoms/desk"
 import { useDeskCache, useSourceFeed } from "~/hooks/useSourceFeed"
-import { articleKey, articleTime, matchesArticle, sourceCategory, sourceKind, sourceWarning, uniqueArticles } from "~/utils/desk"
+import { articleKey, articleTime, groupSourcesByPublisher, matchesArticle, sourceCategory, sourceCategoryLabel, sourceKind, sourcePublisherName, sourceWarning, uniqueArticles } from "~/utils/desk"
 import { readSourceSnapshot } from "~/utils/snapshots"
 import { cacheSources } from "~/utils/data"
 import type { DeskArticle, DeskCategory } from "~/utils/desk"
@@ -81,10 +81,13 @@ function ArticleRow({ article, onOpen, rank }: { article: DeskArticle, onOpen: (
   )
 }
 
-function SourcePanel({ id, state, search, onOpen }: { id: SourceID, state?: FeedState, search: string, onOpen: (article: DeskArticle) => void }) {
+function SourcePanel({ ids, states, search, onOpen }: { ids: SourceID[], states: Partial<Record<SourceID, FeedState>>, search: string, onOpen: (article: DeskArticle) => void }) {
   const [expanded, setExpanded] = useState(false)
   const [weatherTab, setWeatherTab] = useState("all")
   const [account, setAccount] = useState("all")
+  const [selectedId, setSelectedId] = useState(ids[0])
+  const id = ids.includes(selectedId) ? selectedId : ids[0]
+  const state = states[id]
   const { isFocused, toggleFocus } = useFocusWith(id)
   const { refresh } = useRefetch()
   const data = state?.data
@@ -93,12 +96,12 @@ function SourcePanel({ id, state, search, onOpen }: { id: SourceID, state?: Feed
   const isStale = data && Date.now() - new Date(data.updatedTime).getTime() > Math.max(sources[id].interval * 2, 15 * 60_000)
   if (search && data && !items.length) return null
   return (
-    <section className={`source-panel ${id === "markets" || id === "weather" ? "data-panel" : ""}`} aria-label={sources[id].name}>
+    <section className={`source-panel ${id === "markets" || id === "weather" ? "data-panel" : ""}`} aria-label={sourcePublisherName(id)}>
       <header className="source-heading">
         <SourceLogo id={id} />
         <div className="source-heading-text">
-          <h2>{sources[id].name}</h2>
-          <span className="source-subtitle">{sources[id].title || sourceKind(id)}</span>
+          <h2>{sourcePublisherName(id)}</h2>
+          <span className="source-subtitle">{ids.length > 1 ? sourceCategoryLabel(id) : sources[id].title || sourceKind(id)}</span>
         </div>
         <button type="button" className={`desk-icon-button ${isFocused ? "active" : ""}`} title={isFocused ? "取消关注来源" : "关注来源"} aria-label={`${isFocused ? "取消关注" : "关注"}${sources[id].name}`} aria-pressed={isFocused} onClick={toggleFocus}><DeskIcon name={isFocused ? "i-ph:star-fill" : "i-ph:star"} /></button>
         <button type="button" className="desk-icon-button" disabled={state?.fetching} title="刷新此来源" aria-label={`刷新${sources[id].name}`} onClick={() => refresh(id)}><DeskIcon name={`i-ph:arrow-clockwise ${state?.fetching ? "spin" : ""}`} /></button>
@@ -117,8 +120,28 @@ function SourcePanel({ id, state, search, onOpen }: { id: SourceID, state?: Feed
                   </>
                 )
               : "等待加载"}
-        <span className="source-kind">{sourceKind(id)}</span>
+        <span className="source-kind">
+          {sourceKind(id)}
+          {data?.translationComplete === false ? " · 保留原文" : ""}
+        </span>
       </div>
+      {ids.length > 1 && (
+        <div className="source-category-tabs" aria-label={`${sourcePublisherName(id)}内容分类`}>
+          {ids.map(sourceId => (
+            <button
+              type="button"
+              key={sourceId}
+              aria-pressed={id === sourceId}
+              onClick={() => {
+                setSelectedId(sourceId)
+                setExpanded(false)
+              }}
+            >
+              {sourceCategoryLabel(sourceId)}
+            </button>
+          ))}
+        </div>
+      )}
       {id === "weather" && <div className="weather-tabs" aria-label="天气分类">{[["all", "概览"], ["weather-", "天气"], ["cyclone-", "台风"], ["earthquake-", "地震"]].map(([value, label]) => <button type="button" key={value} aria-pressed={weatherTab === value} onClick={() => setWeatherTab(value)}>{label}</button>)}</div>}
       {warning && <p className="source-warning">{warning}</p>}
       {id === "twitter" && <div className="weather-tabs" aria-label="关注账号">{[["all", "全部"], ["thsottiaux", "Tibo"], ["openai", "OpenAI 官方"]].map(([value, label]) => <button type="button" key={value} aria-pressed={account === value} onClick={() => setAccount(value)}>{label}</button>)}</div>}
@@ -291,6 +314,7 @@ export function Desk({ id }: { id: FixedColumnID }) {
   const cache = useDeskCache(ids)
   const onChange = useCallback((sourceId: SourceID, state: FeedState) => setStates(prev => ({ ...prev, [sourceId]: state })), [])
   const visibleIds = ids.filter(sourceId => category === "all" || sourceCategory(sourceId) === category)
+  const visibleGroups = groupSourcesByPublisher(visibleIds)
   const loaded = ids.filter(sourceId => states[sourceId]?.data)
   const fetching = ids.filter(sourceId => states[sourceId]?.fetching)
   const failed = ids.filter(sourceId => states[sourceId]?.error)
@@ -483,7 +507,7 @@ export function Desk({ id }: { id: FixedColumnID }) {
             )
           : (
               <div className="desk-grid">
-                {visibleIds.map(sourceId => <SourcePanel key={sourceId} id={sourceId} state={states[sourceId]} search={search} onOpen={openArticle} />)}
+                {visibleGroups.map(group => <SourcePanel key={group.name} ids={group.ids} states={states} search={search} onOpen={openArticle} />)}
                 {!visibleIds.length && (
                   <div className="desk-empty">
                     <DeskIcon name="i-ph:star" />

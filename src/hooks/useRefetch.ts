@@ -19,8 +19,8 @@ export function useRefetch() {
         },
       })
     } else {
-      sources.forEach(id => requestSourceRefresh(id))
-      updateQuery(...sources)
+      const queued = sources.filter(id => requestSourceRefresh(id))
+      if (queued.length) updateQuery(...queued)
     }
   }, [loggedIn, toaster, login, enableLogin, updateQuery])
 

@@ -6,6 +6,32 @@ export interface DeskArticle {
   sourceId: SourceID
   item: NewsItem
 }
+export interface DeskSourceGroup {
+  id: SourceID
+  ids: SourceID[]
+  name: string
+}
+
+export function sourcePublisherName(id: SourceID) {
+  if (id === "bbc" || id.startsWith("bbcnews-")) return "BBC"
+  return sources[id].name
+}
+
+export function sourceCategoryLabel(id: SourceID) {
+  if (id === "bbc") return "中文"
+  return sources[id].title || sourceKind(id)
+}
+
+export function groupSourcesByPublisher(ids: SourceID[]): DeskSourceGroup[] {
+  const groups = new Map<string, DeskSourceGroup>()
+  for (const id of ids) {
+    const name = sourcePublisherName(id)
+    const group = groups.get(name)
+    if (group) group.ids.push(id)
+    else groups.set(name, { id, ids: [id], name })
+  }
+  return [...groups.values()]
+}
 
 export function sourceCategory(id: SourceID): DeskCategory {
   if (/^(?:govcn|people|xinhua|chinanews|scmp)(?:-|$)/.test(id)) return "china"

@@ -1,5 +1,5 @@
-import type { SourceID, SourceResponse } from "@shared/types"
-import { createError, defineEventHandler, getQuery, setHeader } from "h3"
+import type { NewsItem, SourceID, SourceResponse } from "@shared/types"
+import { type H3Event, createError, defineEventHandler, getQuery, setHeader } from "h3"
 import { sources } from "@shared/sources"
 import { TTL } from "@shared/consts"
 import { logger } from "#/utils/logger"
@@ -8,11 +8,47 @@ import { getCacheTable } from "#/database/cache"
 import type { CacheInfo } from "#/types"
 import { isChineseOutput, translateNewsItemsForOutput } from "#/utils/translate"
 
+const inFlightRefreshes = new Map<SourceID, Promise<NewsItem[]>>()
+
 async function readableItems(id: SourceID, items: CacheInfo["items"]) {
   const translatedItems = await translateNewsItemsForOutput(items, id)
   return {
     items: translatedItems,
     translationComplete: isChineseOutput(translatedItems),
+  }
+}
+
+function cachedItems(items: CacheInfo["items"]) {
+  return {
+    items,
+    translationComplete: isChineseOutput(items),
+  }
+}
+
+async function refreshSource(id: SourceID, event: H3Event, cacheTable: Awaited<ReturnType<typeof getCacheTable>>) {
+  const load = async () => {
+    const getter = await getGetter(id)
+    if (!getter) throw new Error("Invalid source id")
+    const fetchedItems = (await getter(event)).slice(0, 30)
+    const readable = await readableItems(id, fetchedItems)
+    if (!readable.items.length) throw new Error("Source returned no news")
+    if (cacheTable && id !== "weather") {
+      await cacheTable.set(id, readable.items)
+    }
+    logger.success(`fetch ${id} latest`)
+    return readable.items
+  }
+
+  if (id === "weather") return load()
+  const existing = inFlightRefreshes.get(id)
+  if (existing) return existing
+
+  const pending = load()
+  inFlightRefreshes.set(id, pending)
+  try {
+    return await pending
+  } finally {
+    if (inFlightRefreshes.get(id) === pending) inFlightRefreshes.delete(id)
   }
 }
 
@@ -35,58 +71,45 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
       // An explicit latest request is the refresh button contract. Do not let
       // the normal interval/TTL cache path hide fresh source data from it.
       if (cache && !latest) {
-        // interval 刷新间隔，对于缓存失效也要执行的。本质上表示本来内容更新就很慢，这个间隔内可能内容压根不会更新。
-        // 默认 10 分钟，是低于 TTL 的，但部分 Source 的更新间隔会超过 TTL，甚至有的一天更新一次。
+        // Respect each source's collection cadence before contacting its upstream.
         if (now - cache.updated < sources[id].interval) {
-          const readable = await readableItems(id, cache.items)
           return {
             status: "success",
             id,
             updatedTime: cache.updated,
-            ...readable,
+            ...cachedItems(cache.items),
           }
         }
 
-        // 而 TTL 缓存失效时间，在时间范围内，就算内容更新了也要用这个缓存。
-        // 复用缓存是不会更新时间的。
+        // Keep recently cached content available during the short cache grace period.
         if (now - cache.updated < TTL) {
-          const readable = await readableItems(id, cache.items)
           return {
             status: "cache",
             id,
             updatedTime: cache.updated,
-            ...readable,
+            ...cachedItems(cache.items),
           }
         }
       }
     }
 
     try {
-      const getter = await getGetter(id)
-      if (!getter) throw new Error("Invalid source id")
-      const fetchedItems = (await getter(event)).slice(0, 30)
-      const readable = await readableItems(id, fetchedItems)
-      if (!readable.items.length) throw new Error("Source returned no news")
-      if (cacheTable && readable.items.length) {
-        if (event.context.waitUntil) event.context.waitUntil(cacheTable.set(id, readable.items))
-        else await cacheTable.set(id, readable.items)
-      }
-      logger.success(`fetch ${id} latest`)
+      const refreshedItems = await refreshSource(id, event, cacheTable)
       return {
         status: "success",
         id,
         updatedTime: now,
-        ...readable,
+        items: refreshedItems,
+        translationComplete: isChineseOutput(refreshedItems),
       }
     } catch (e) {
       if (cache!) {
-        const readable = await readableItems(id, cache.items)
         return {
           status: "cache",
           refreshError: true,
           id,
           updatedTime: cache.updated,
-          ...readable,
+          ...cachedItems(cache.items),
         }
       } else {
         throw e

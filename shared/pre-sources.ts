@@ -5,11 +5,11 @@ import type { OriginSource, Source, SourceID } from "./types"
 
 const Time = {
   Test: 1,
-  Realtime: 2 * 60 * 1000,
-  Fast: 5 * 60 * 1000,
-  Default: Interval, // 10min
-  Common: 30 * 60 * 1000,
-  Slow: 60 * 60 * 1000,
+  Realtime: 10 * 60 * 1000,
+  Fast: 30 * 60 * 1000,
+  Default: Interval, // 1h
+  Common: 2 * 60 * 60 * 1000,
+  Slow: 4 * 60 * 60 * 1000,
 }
 
 // Curated for factuality: prefer wire services, official primary releases,

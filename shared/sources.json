@@ -7,7 +7,7 @@
     "column": "finance",
     "home": "https://www.tradingview.com/markets/world-stocks/world-stock-markets/",
     "color": "cyan",
-    "interval": 120000
+    "interval": 600000
   },
   "weather": {
     "title": "当地・北京・台风・全球地震",
@@ -17,7 +17,7 @@
     "column": "world",
     "home": "https://open-meteo.com/",
     "color": "sky",
-    "interval": 300000
+    "interval": 1800000
   },
   "pi": {
     "title": "官方与筛选媒体",
@@ -27,7 +27,7 @@
     "column": "finance",
     "home": "https://minepi.com/blog/",
     "color": "violet",
-    "interval": 300000
+    "interval": 1800000
   },
   "apple": {
     "title": "美区精选与播客",
@@ -37,7 +37,7 @@
     "column": "world",
     "home": "https://apps.apple.com/us/app/apple-news/id1066498020",
     "color": "rose",
-    "interval": 300000
+    "interval": 1800000
   },
   "ai": {
     "title": "最新动态",
@@ -47,7 +47,7 @@
     "column": "tech",
     "home": "https://openai.com/news/",
     "color": "blue",
-    "interval": 300000
+    "interval": 1800000
   },
   "fed": {
     "title": "利率与动态",
@@ -57,7 +57,7 @@
     "column": "finance",
     "home": "https://www.federalreserve.gov/",
     "color": "green",
-    "interval": 300000
+    "interval": 1800000
   },
   "github": {
     "title": "今日热门仓库",
@@ -67,7 +67,7 @@
     "column": "tech",
     "home": "https://github.com/trending",
     "color": "slate",
-    "interval": 300000
+    "interval": 1800000
   },
   "govcn": {
     "name": "中国政府网",
@@ -76,7 +76,7 @@
     "column": "china",
     "home": "https://www.gov.cn/",
     "color": "red",
-    "interval": 300000
+    "interval": 1800000
   },
   "people": {
     "redirect": "people-politics",
@@ -85,7 +85,7 @@
     "column": "china",
     "home": "http://politics.people.com.cn/",
     "color": "red",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "国内"
   },
   "people-politics": {
@@ -94,7 +94,7 @@
     "column": "china",
     "home": "http://politics.people.com.cn/",
     "color": "red",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "国内"
   },
   "people-world": {
@@ -103,7 +103,7 @@
     "column": "world",
     "home": "https://world.people.com.cn/",
     "color": "red",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "国际"
   },
   "people-finance": {
@@ -112,7 +112,7 @@
     "column": "finance",
     "home": "http://finance.people.com.cn/",
     "color": "red",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "财经"
   },
   "chinanews": {
@@ -122,7 +122,7 @@
     "column": "china",
     "home": "https://www.chinanews.com/china/",
     "color": "red",
-    "interval": 1800000,
+    "interval": 7200000,
     "title": "国内"
   },
   "chinanews-china": {
@@ -131,7 +131,7 @@
     "column": "china",
     "home": "https://www.chinanews.com/china/",
     "color": "red",
-    "interval": 1800000,
+    "interval": 7200000,
     "title": "国内"
   },
   "chinanews-world": {
@@ -140,7 +140,7 @@
     "column": "world",
     "home": "https://www.chinanews.com/world/",
     "color": "red",
-    "interval": 1800000,
+    "interval": 7200000,
     "title": "国际"
   },
   "chinanews-finance": {
@@ -149,7 +149,7 @@
     "column": "finance",
     "home": "https://www.chinanews.com/finance/",
     "color": "red",
-    "interval": 1800000,
+    "interval": 7200000,
     "title": "财经"
   },
   "xinhua": {
@@ -159,7 +159,7 @@
     "column": "china",
     "home": "https://english.news.cn/",
     "color": "red",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "中国"
   },
   "xinhua-china": {
@@ -168,7 +168,7 @@
     "column": "china",
     "home": "https://english.news.cn/",
     "color": "red",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "中国"
   },
   "xinhua-world": {
@@ -177,7 +177,7 @@
     "column": "world",
     "home": "https://english.news.cn/",
     "color": "red",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "国际"
   },
   "xinhua-business": {
@@ -186,7 +186,7 @@
     "column": "finance",
     "home": "https://english.news.cn/",
     "color": "red",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "商业"
   },
   "xinhua-tech": {
@@ -195,7 +195,7 @@
     "column": "tech",
     "home": "https://english.news.cn/",
     "color": "red",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "科技"
   },
   "twitter": {
@@ -206,7 +206,7 @@
     "column": "tech",
     "home": "https://x.com/thsottiaux",
     "color": "blue",
-    "interval": 300000
+    "interval": 1800000
   },
   "truthsocial": {
     "title": "特朗普发布",
@@ -216,7 +216,7 @@
     "column": "world",
     "home": "https://truthsocial.com/@realDonaldTrump",
     "color": "red",
-    "interval": 300000
+    "interval": 1800000
   },
   "reuters": {
     "title": "综合",
@@ -226,7 +226,7 @@
     "column": "world",
     "home": "https://www.reuters.com/",
     "color": "orange",
-    "interval": 300000
+    "interval": 1800000
   },
   "apnews": {
     "redirect": "apnews-top",
@@ -236,7 +236,7 @@
     "column": "world",
     "home": "https://apnews.com/",
     "color": "slate",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "头条"
   },
   "apnews-top": {
@@ -246,7 +246,7 @@
     "column": "world",
     "home": "https://apnews.com/",
     "color": "slate",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "头条"
   },
   "apnews-world": {
@@ -256,7 +256,7 @@
     "column": "world",
     "home": "https://apnews.com/",
     "color": "slate",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "国际"
   },
   "apnews-business": {
@@ -266,7 +266,7 @@
     "column": "finance",
     "home": "https://apnews.com/",
     "color": "slate",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "商业"
   },
   "apnews-fact-check": {
@@ -276,7 +276,7 @@
     "column": "world",
     "home": "https://apnews.com/",
     "color": "slate",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "事实核查"
   },
   "afp": {
@@ -287,7 +287,7 @@
     "column": "world",
     "home": "https://www.afp.com/en",
     "color": "blue",
-    "interval": 1800000
+    "interval": 7200000
   },
   "bbc": {
     "name": "BBC中文",
@@ -295,7 +295,7 @@
     "column": "world",
     "home": "https://www.bbc.com/zhongwen/simp",
     "color": "red",
-    "interval": 1800000
+    "interval": 7200000
   },
   "bbcnews": {
     "redirect": "bbcnews-world",
@@ -305,7 +305,7 @@
     "column": "world",
     "home": "https://www.bbc.com/news/world",
     "color": "red",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "国际"
   },
   "bbcnews-world": {
@@ -315,7 +315,7 @@
     "column": "world",
     "home": "https://www.bbc.com/news/world",
     "color": "red",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "国际"
   },
   "bbcnews-worldservice": {
@@ -325,7 +325,7 @@
     "column": "world",
     "home": "https://www.bbc.co.uk/programmes/p02nq0gn",
     "color": "red",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "国际广播"
   },
   "bloomberg": {
@@ -336,7 +336,7 @@
     "column": "finance",
     "home": "https://www.bloomberg.com/",
     "color": "orange",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "商业"
   },
   "bloomberg-business": {
@@ -346,7 +346,7 @@
     "column": "finance",
     "home": "https://www.bloomberg.com/",
     "color": "orange",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "商业"
   },
   "bloomberg-markets": {
@@ -356,7 +356,7 @@
     "column": "finance",
     "home": "https://www.bloomberg.com/",
     "color": "orange",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "市场"
   },
   "bloomberg-economics": {
@@ -366,7 +366,7 @@
     "column": "finance",
     "home": "https://www.bloomberg.com/",
     "color": "orange",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "经济"
   },
   "bloomberg-politics": {
@@ -376,7 +376,7 @@
     "column": "world",
     "home": "https://www.bloomberg.com/",
     "color": "orange",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "政治"
   },
   "bloomberg-technology": {
@@ -386,7 +386,7 @@
     "column": "tech",
     "home": "https://www.bloomberg.com/",
     "color": "orange",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "科技"
   },
   "ft": {
@@ -397,7 +397,7 @@
     "column": "finance",
     "home": "https://ft.com/",
     "color": "orange",
-    "interval": 1800000
+    "interval": 7200000
   },
   "wsj": {
     "redirect": "wsj-news",
@@ -407,7 +407,7 @@
     "column": "world",
     "home": "https://www.wsj.com/news/rss-news-and-feeds",
     "color": "slate",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "新闻"
   },
   "wsj-news": {
@@ -417,7 +417,7 @@
     "column": "world",
     "home": "https://www.wsj.com/news/rss-news-and-feeds",
     "color": "slate",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "新闻"
   },
   "wsj-world": {
@@ -427,7 +427,7 @@
     "column": "world",
     "home": "https://www.wsj.com/news/rss-news-and-feeds",
     "color": "slate",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "国际"
   },
   "wsj-markets": {
@@ -437,7 +437,7 @@
     "column": "finance",
     "home": "https://www.wsj.com/news/rss-news-and-feeds",
     "color": "slate",
-    "interval": 300000,
+    "interval": 1800000,
     "title": "市场"
   },
   "nikkei": {
@@ -448,7 +448,7 @@
     "column": "finance",
     "home": "https://asia.nikkei.com/",
     "color": "orange",
-    "interval": 1800000
+    "interval": 7200000
   },
   "dw": {
     "name": "德国之声中文",
@@ -456,7 +456,7 @@
     "column": "world",
     "home": "https://www.dw.com/zh/",
     "color": "blue",
-    "interval": 1800000
+    "interval": 7200000
   },
   "france24": {
     "title": "国际",
@@ -466,7 +466,7 @@
     "column": "world",
     "home": "https://www.france24.com/en/",
     "color": "blue",
-    "interval": 1800000
+    "interval": 7200000
   },
   "nhk": {
     "title": "国际",
@@ -476,7 +476,7 @@
     "column": "world",
     "home": "https://www3.nhk.or.jp/nhkworld/news/list/",
     "color": "red",
-    "interval": 1800000
+    "interval": 7200000
   },
   "economist": {
     "title": "最新",
@@ -486,7 +486,7 @@
     "column": "world",
     "home": "https://www.economist.com/latest",
     "color": "red",
-    "interval": 1800000
+    "interval": 7200000
   },
   "rfi": {
     "name": "法广中文",
@@ -494,7 +494,7 @@
     "column": "world",
     "home": "https://www.rfi.fr/cn/",
     "color": "blue",
-    "interval": 1800000
+    "interval": 7200000
   },
   "unnews": {
     "name": "联合国新闻",
@@ -503,7 +503,7 @@
     "column": "world",
     "home": "https://news.un.org/zh/",
     "color": "blue",
-    "interval": 1800000
+    "interval": 7200000
   },
   "scmp": {
     "redirect": "scmp-news",
@@ -512,7 +512,7 @@
     "column": "world",
     "home": "https://www.scmp.com/",
     "color": "orange",
-    "interval": 1800000,
+    "interval": 7200000,
     "title": "新闻"
   },
   "scmp-news": {
@@ -521,7 +521,7 @@
     "column": "world",
     "home": "https://www.scmp.com/",
     "color": "orange",
-    "interval": 1800000,
+    "interval": 7200000,
     "title": "新闻"
   },
   "scmp-china": {
@@ -530,7 +530,7 @@
     "column": "china",
     "home": "https://www.scmp.com/",
     "color": "orange",
-    "interval": 1800000,
+    "interval": 7200000,
     "title": "中国"
   },
   "scmp-hongkong": {
@@ -539,7 +539,7 @@
     "column": "china",
     "home": "https://www.scmp.com/",
     "color": "orange",
-    "interval": 1800000,
+    "interval": 7200000,
     "title": "香港"
   }
 }

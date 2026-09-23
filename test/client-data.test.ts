@@ -1,56 +1,63 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { completeSourceRefresh, failSourceRefresh, refetchSources, requestSourceRefresh, resetSourceRefreshState, scheduleSourceAutoRefresh, withSourceRequestLimit } from "../src/utils/data"
+import { completeSourceRefresh, failSourceRefresh, refetchSources, requestSourceRefresh, resetSourceRefreshState, scheduleSourceAutoRefresh, sourceNeedsRefresh, sourceRefreshInterval, withSourceRequestLimit } from "../src/utils/data"
 
 beforeEach(() => {
   resetSourceRefreshState()
 })
 
 describe("automatic source refresh", () => {
-  it("forces a latest request when a source first appears", () => {
+  it("schedules stale sources without forcing an upstream refresh", () => {
     expect(scheduleSourceAutoRefresh("weather", 1000)).toBe(true)
-    expect(refetchSources.has("weather")).toBe(true)
+    expect(refetchSources.has("weather")).toBe(false)
   })
 
-  it("deduplicates automatic refreshes for one minute", () => {
+  it("respects the configured refresh cadence", () => {
+    const interval = sourceRefreshInterval("weather")
     expect(scheduleSourceAutoRefresh("weather", 1000)).toBe(true)
     completeSourceRefresh("weather", 1000)
 
-    expect(scheduleSourceAutoRefresh("weather", 60_999)).toBe(false)
+    expect(scheduleSourceAutoRefresh("weather", interval + 999)).toBe(false)
     expect(refetchSources.has("weather")).toBe(false)
-    expect(scheduleSourceAutoRefresh("weather", 61_000)).toBe(true)
-    expect(refetchSources.has("weather")).toBe(true)
+    expect(scheduleSourceAutoRefresh("weather", interval + 1000)).toBe(true)
+    expect(refetchSources.has("weather")).toBe(false)
   })
 
   it("does not duplicate a refresh that is still queued", () => {
-    expect(scheduleSourceAutoRefresh("weather", 1000)).toBe(true)
+    expect(requestSourceRefresh("weather", 1000)).toBe(true)
     expect(scheduleSourceAutoRefresh("weather", 120_000)).toBe(false)
-
+    expect(requestSourceRefresh("weather", 120_000)).toBe(false)
     completeSourceRefresh("weather", 120_000)
-    expect(scheduleSourceAutoRefresh("weather", 179_999)).toBe(false)
-    expect(scheduleSourceAutoRefresh("weather", 180_000)).toBe(true)
+    expect(scheduleSourceAutoRefresh("weather", sourceRefreshInterval("weather") + 120_000)).toBe(true)
   })
 
   it("allows a failed refresh to retry after the cooldown", () => {
-    expect(scheduleSourceAutoRefresh("weather", 1000)).toBe(true)
+    expect(requestSourceRefresh("weather", 1000)).toBe(true)
     failSourceRefresh("weather")
 
-    expect(scheduleSourceAutoRefresh("weather", 61_000)).toBe(true)
+    expect(scheduleSourceAutoRefresh("weather", sourceRefreshInterval("weather") + 1000)).toBe(true)
   })
 
   it("keeps other queued refreshes when a manual refresh is requested", () => {
     scheduleSourceAutoRefresh("weather", 1000)
-    requestSourceRefresh("markets", 1000)
+    expect(requestSourceRefresh("markets", 1000)).toBe(true)
 
-    expect(refetchSources).toEqual(new Set(["weather", "markets"]))
+    expect(refetchSources).toEqual(new Set(["markets"]))
     expect(scheduleSourceAutoRefresh("markets", 2000)).toBe(false)
+  })
+
+  it("checks freshness against each source's effective interval", () => {
+    const interval = sourceRefreshInterval("weather")
+    expect(sourceNeedsRefresh("weather", 10_000, 10_000 + interval - 1)).toBe(false)
+    expect(sourceNeedsRefresh("weather", 10_000, 10_000 + interval)).toBe(true)
+    expect(sourceNeedsRefresh("weather", undefined)).toBe(true)
   })
 })
 
 describe("source request limiter", () => {
-  it("allows at most two source requests at once", async () => {
+  it("allows at most one source request at once", async () => {
     let active = 0
     let maxActive = 0
-    const results = await Promise.all(Array.from({ length: 6 }, (_, index) => withSourceRequestLimit(async () => {
+    const results = await Promise.all(Array.from({ length: 2 }, (_, index) => withSourceRequestLimit(async () => {
       active += 1
       maxActive = Math.max(maxActive, active)
       await new Promise(resolve => setTimeout(resolve, 15))
@@ -58,7 +65,7 @@ describe("source request limiter", () => {
       return index
     })))
 
-    expect(results).toEqual([0, 1, 2, 3, 4, 5])
-    expect(maxActive).toBe(2)
+    expect(results).toEqual([0, 1])
+    expect(maxActive).toBe(1)
   })
 })

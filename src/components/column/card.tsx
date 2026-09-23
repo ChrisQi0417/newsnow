@@ -5,7 +5,7 @@ import { useWindowSize } from "react-use"
 import { forwardRef, useImperativeHandle } from "react"
 import { OverlayScrollbar } from "../common/overlay-scrollbar"
 import { safeParseString } from "~/utils"
-import { completeSourceRefresh, failSourceRefresh, scheduleSourceAutoRefresh, withSourceRequestLimit } from "~/utils/data"
+import { completeSourceRefresh, failSourceRefresh, scheduleSourceAutoRefresh, sourceNeedsRefresh, sourceRefreshInterval, withSourceRequestLimit } from "~/utils/data"
 
 export interface ItemsProps extends React.HTMLAttributes<HTMLDivElement> {
   id: SourceID
@@ -55,7 +55,7 @@ function NewsCard({ id, setHandleRef }: NewsCardProps) {
   const { refresh } = useRefetch()
   const { data, isFetching, isError, refetch } = useQuery({
     queryKey: ["source", id],
-    queryFn: async ({ queryKey }) => {
+    queryFn: async ({ queryKey, signal }) => {
       const id = queryKey[1] as SourceID
       let url = `/s?id=${id}`
       const headers: Record<string, any> = {}
@@ -64,13 +64,13 @@ function NewsCard({ id, setHandleRef }: NewsCardProps) {
         url = `/s?id=${id}&latest`
         const jwt = safeParseString(localStorage.getItem("jwt"))
         if (jwt) headers.Authorization = `Bearer ${jwt}`
-      } else if (cacheSources.has(id)) {
+      } else if (cacheSources.has(id) && !sourceNeedsRefresh(id, cacheSources.get(id)!.updatedTime)) {
         // wait animation
         await delay(200)
         return cacheSources.get(id)
       }
 
-      const response: SourceResponse = await withSourceRequestLimit(() => myFetch(url, { headers }))
+      const response: SourceResponse = await withSourceRequestLimit(() => myFetch(url, { headers, signal }))
       if (forceLatest) completeSourceRefresh(id)
 
       function diff() {
@@ -108,7 +108,7 @@ function NewsCard({ id, setHandleRef }: NewsCardProps) {
   }, [id, isError, isFetching])
 
   const refreshLatest = useCallback(() => {
-    if (!data || isFetching || !scheduleSourceAutoRefresh(id)) return
+    if (!data || isFetching || !sourceNeedsRefresh(id, data.updatedTime) || !scheduleSourceAutoRefresh(id)) return
     void refetch()
   }, [data, id, isFetching, refetch])
 
@@ -117,6 +117,7 @@ function NewsCard({ id, setHandleRef }: NewsCardProps) {
   }, [refreshLatest])
 
   useEffect(() => {
+    const interval = window.setInterval(refreshLatest, sourceRefreshInterval(id))
     const handleVisible = () => {
       if (document.visibilityState === "visible") refreshLatest()
     }
@@ -128,8 +129,9 @@ function NewsCard({ id, setHandleRef }: NewsCardProps) {
       document.removeEventListener("visibilitychange", handleVisible)
       window.removeEventListener("focus", handleVisible)
       window.removeEventListener("pageshow", handleVisible)
+      clearInterval(interval)
     }
-  }, [refreshLatest])
+  }, [id, refreshLatest])
 
   const { isFocused, toggleFocus } = useFocusWith(id)
 

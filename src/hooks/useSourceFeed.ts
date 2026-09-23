@@ -1,7 +1,6 @@
 import type { SourceID, SourceResponse } from "@shared/types"
 import { useQuery } from "@tanstack/react-query"
-import { sources } from "@shared/sources"
-import { cacheSources, completeSourceRefresh, failSourceRefresh, refetchSources, scheduleSourceAutoRefresh, withSourceRequestLimit } from "~/utils/data"
+import { cacheSources, completeSourceRefresh, failSourceRefresh, refetchSources, scheduleSourceAutoRefresh, sourceNeedsRefresh, sourceRefreshInterval, withSourceRequestLimit } from "~/utils/data"
 import { myFetch, safeParseString } from "~/utils"
 import { readSourceSnapshot, saveSourceSnapshot } from "~/utils/snapshots"
 import { isSourceResponse } from "~/utils/source-response"
@@ -20,7 +19,6 @@ export function useDeskCache(ids: SourceID[]) {
       if (!Array.isArray(cached)) throw new Error("Invalid desk cache response")
       for (const entry of cached) {
         if (!entry || !ids.includes(entry.id) || !isSourceResponse(entry, entry.id)) continue
-        if (entry.translationComplete === false) continue
         const previous = cacheSources.get(entry.id)
         if (!previous || new Date(previous.updatedTime).getTime() < new Date(entry.updatedTime).getTime()) cacheSources.set(entry.id, entry)
       }
@@ -37,7 +35,8 @@ export function useSourceFeed(id: SourceID) {
     queryKey: ["source", id],
     queryFn: async ({ signal }) => {
       const latest = refetchSources.has(id)
-      if (!latest && cacheSources.has(id)) return cacheSources.get(id)!
+      const localCache = cacheSources.get(id)
+      if (!latest && localCache && !sourceNeedsRefresh(id, localCache.updatedTime)) return localCache
       const headers: Record<string, string> = {}
       const jwt = safeParseString(localStorage.getItem("jwt"))
       if (latest && jwt) headers.Authorization = `Bearer ${jwt}`
@@ -68,9 +67,9 @@ export function useSourceFeed(id: SourceID) {
   })
   const { data, isFetching, isError, refetch } = query
   const refreshLatest = useCallback(() => {
-    if (document.visibilityState !== "visible" || !navigator.onLine || isFetching) return
+    if (document.visibilityState !== "visible" || !navigator.onLine || isFetching || !data || !sourceNeedsRefresh(id, data.updatedTime)) return
     if (scheduleSourceAutoRefresh(id)) void refetch()
-  }, [id, isFetching, refetch])
+  }, [id, data, isFetching, refetch])
 
   useEffect(() => {
     if (isError && !isFetching) failSourceRefresh(id)
@@ -81,7 +80,7 @@ export function useSourceFeed(id: SourceID) {
   }, [data, refreshLatest])
 
   useEffect(() => {
-    const interval = window.setInterval(refreshLatest, Math.max(sources[id].interval, 60_000))
+    const interval = window.setInterval(refreshLatest, sourceRefreshInterval(id))
     document.addEventListener("visibilitychange", refreshLatest)
     window.addEventListener("pageshow", refreshLatest)
     window.addEventListener("online", refreshLatest)

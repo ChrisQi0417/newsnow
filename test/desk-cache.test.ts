@@ -45,7 +45,7 @@ describe("desk cache transparency", () => {
   it("retains cached news and reports failure when upstream returns an empty list", async () => {
     mocks.query.latest = "true"
     mocks.getter.mockResolvedValue([])
-    expect(await handler(event)).toMatchObject({ status: "cache", refreshError: true, updatedTime: updated, items: [{ ...items[0], title: "中文：Previously retrieved news" }] })
+    expect(await handler(event)).toMatchObject({ status: "cache", refreshError: true, updatedTime: updated, translationComplete: false, items })
     expect(mocks.set).not.toHaveBeenCalled()
   })
   it("rejects an empty response when no readable cache exists", async () => {
@@ -55,7 +55,7 @@ describe("desk cache transparency", () => {
     await expect(handler(event)).rejects.toThrow("Source returned no news")
   })
   it("preserves the real retrieval timestamp on a recent cache hit", async () => {
-    expect(await handler(event)).toMatchObject({ updatedTime: updated, items: [{ ...items[0], title: "中文：Previously retrieved news" }] })
+    expect(await handler(event)).toMatchObject({ updatedTime: updated, translationComplete: false, items })
     expect(mocks.getter).not.toHaveBeenCalled()
   })
   it("preserves timestamps when hydrating the entire desk", async () => {
@@ -64,7 +64,7 @@ describe("desk cache transparency", () => {
   it("reports a failed latest fetch while retaining readable cached news", async () => {
     mocks.query.latest = "true"
     mocks.getter.mockRejectedValue(new Error("upstream unavailable"))
-    expect(await handler(event)).toMatchObject({ status: "cache", refreshError: true, updatedTime: updated, items: [{ ...items[0], title: "中文：Previously retrieved news" }] })
+    expect(await handler(event)).toMatchObject({ status: "cache", refreshError: true, updatedTime: updated, translationComplete: false, items })
   })
   it("clears the fallback error flag after a successful fetch", async () => {
     mocks.query.latest = "true"
@@ -73,5 +73,17 @@ describe("desk cache transparency", () => {
     expect(result.status).toBe("success")
     expect(result.refreshError).toBeUndefined()
     expect(mocks.set).toHaveBeenCalledWith("reuters", [{ ...items[0], title: "中文：Previously retrieved news" }])
+  })
+  it("coalesces simultaneous manual refreshes for the same source", async () => {
+    mocks.query.latest = "true"
+    mocks.getter.mockImplementation(async () => {
+      await new Promise(resolve => setTimeout(resolve, 10))
+      return items
+    })
+
+    const results = await Promise.all([handler(event), handler(event)])
+
+    expect(mocks.getter).toHaveBeenCalledOnce()
+    expect(results.every(result => result.items.length === 1)).toBe(true)
   })
 })

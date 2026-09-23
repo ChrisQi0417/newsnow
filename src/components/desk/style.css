@@ -179,6 +179,10 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 .weather-tabs { display: flex; gap: 4px; padding: 3px 16px 12px; }
 .weather-tabs button { font-size: 11px; padding: 5px 8px; color: var(--desk-muted); border-bottom: 2px solid transparent; }
 .weather-tabs button[aria-pressed="true"] { color: var(--desk-ink); border-color: var(--desk-ok); }
+.source-category-tabs { display: flex; gap: 4px; padding: 3px 12px 10px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--desk-line); }
+.source-category-tabs::-webkit-scrollbar { display: none; }
+.source-category-tabs button { flex: 0 0 auto; min-height: 30px; padding: 4px 8px; color: var(--desk-muted); font-size: 11px; white-space: nowrap; border-bottom: 2px solid transparent; }
+.source-category-tabs button[aria-pressed="true"] { color: var(--desk-ink); border-color: var(--desk-ok); }
 @keyframes desk-spin { to { transform: rotate(360deg); } }
 @media (min-width: 1650px) { .desk-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 1250px) { .desk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .desk-brand small { display: none; } .desk-main { padding: 26px 24px; } }

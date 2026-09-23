@@ -1,9 +1,14 @@
 import { readFile, writeFile } from "node:fs/promises"
 import process from "node:process"
+import { resolve } from "node:path"
 
 const sources = JSON.parse(await readFile(new URL("../shared/sources.json", import.meta.url), "utf8"))
 const base = process.env.AUDIT_URL || "https://newsnow-1nq.pages.dev"
 const ids = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(sources).filter(id => !sources[id].redirect)
+const forceLatest = process.env.AUDIT_FORCE_LATEST === "true"
+const configuredDelay = Number(process.env.AUDIT_DELAY_MS)
+const delayMs = Number.isFinite(configuredDelay) ? Math.max(5000, configuredDelay) : 5000
+const outputPath = process.env.AUDIT_OUTPUT ? resolve(process.env.AUDIT_OUTPUT) : new URL("../source-audit.json", import.meta.url)
 const chinesePattern = /[\u3400-\u9FFF]/
 const latinPattern = /[A-Z]/i
 const feedErrorPattern = /^(?:query length limit exceeded|error\b|cannot fetch\b)/i
@@ -14,7 +19,10 @@ async function worker() {
     const id = ids[cursor++]
     const start = Date.now()
     try {
-      const response = await fetch(`${base}/api/s?id=${encodeURIComponent(id)}&latest=true`, { signal: AbortSignal.timeout(45000) })
+      const endpoint = new URL("/api/s", base)
+      endpoint.searchParams.set("id", id)
+      if (forceLatest) endpoint.searchParams.set("latest", "true")
+      const response = await fetch(endpoint, { signal: AbortSignal.timeout(45000) })
       const body = await response.text()
       let data
       try {
@@ -31,24 +39,26 @@ async function worker() {
       results.push({
         id,
         http: response.status,
+        status: data.status,
         count: items.length,
         chineseCount,
         englishOnlyCount: englishOnly.length,
         englishOnlySample: englishOnly.slice(0, 3),
+        translationComplete: data.translationComplete,
         invalidTitles,
         refreshError: !!data.refreshError,
         updatedTime: data.updatedTime,
         newest: times.length ? new Date(Math.max(...times)).toISOString() : null,
         ms: Date.now() - start,
-        ok: response.ok && items.length > 0 && !data.refreshError && invalidTitles.length === 0,
+        ok: response.ok && ["success", "cache"].includes(data.status) && items.length > 0 && !data.refreshError && invalidTitles.length === 0,
       })
     } catch (error) {
       results.push({ id, ok: false, error: error.message, ms: Date.now() - start })
     }
     console.log(`${id}: ${results.at(-1).ok ? "ok" : "FAILED"}`)
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    await new Promise(resolve => setTimeout(resolve, delayMs))
   }
 }
 await worker()
-await writeFile(new URL("../source-audit.json", import.meta.url), JSON.stringify({ checkedAt: new Date().toISOString(), base, results }, null, 2))
+await writeFile(outputPath, JSON.stringify({ checkedAt: new Date().toISOString(), base, forceLatest, delayMs, results }, null, 2))
 console.log(JSON.stringify({ total: results.length, passed: results.filter(item => item.ok).length, failed: results.filter(item => !item.ok), newest: results.filter(item => item.ok).map(({ id, newest }) => ({ id, newest })) }, null, 2))
