@@ -26,7 +26,7 @@ describe("workers AI translation", () => {
   })
 
   it("never translates GitHub repository identifiers", async () => {
-    const { translateNewsItemsForOutput } = await import("../server/utils/translate")
+    const { isChineseOutput, translateNewsItemsForOutput } = await import("../server/utils/translate")
     const run = vi.fn(async () => ({ response: { 0: "快速编程工具" } }))
     const result = await translateNewsItemsForOutput([{ id: "repo", title: "owner/repo-name：Fast coding tools", url: "https://github.com/owner/repo-name" }], "github", { run })
     expect(result[0].title).toBe("owner/repo-name：快速编程工具")
@@ -36,6 +36,9 @@ describe("workers AI translation", () => {
     const bare = { id: "bare", title: "owner/bare-repo", url: "https://github.com/owner/bare-repo" }
     expect(await translateNewsItemsForOutput([bare], "github", { run })).toEqual([bare])
     expect(run).toHaveBeenCalledOnce()
+    expect(isChineseOutput([bare])).toBe(true)
+    expect(isChineseOutput([{ ...bare, title: "owner/bare-repo: English description" }])).toBe(false)
+    expect(isChineseOutput([{ ...bare, url: "https://example.com/owner/bare-repo" }])).toBe(false)
   })
 
   it("bounds inference concurrency to two and total calls to six", async () => {

@@ -151,7 +151,19 @@ function shouldTranslate(title: string) {
 }
 
 export function isChineseOutput(items: NewsItem[]) {
-  return items.every(item => !shouldTranslate(normalizeTitle(String(item.title ?? ""))))
+  return items.every((item) => {
+    const title = normalizeTitle(String(item.title ?? ""))
+    if (!shouldTranslate(title)) return true
+    try {
+      const url = new URL(item.url)
+      // A repository without a description has only its literal identifier.
+      // Translating that identifier would misidentify the project.
+      return url.protocol === "https:" && url.hostname === "github.com"
+        && /^[\w.-]+\/[\w.-]+$/.test(title) && url.pathname === `/${title}`
+    } catch {
+      return false
+    }
+  })
 }
 
 export function getTranslationIssues(items: NewsItem[]) {

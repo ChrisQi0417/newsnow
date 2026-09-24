@@ -33,7 +33,16 @@ async function worker() {
       const items = Array.isArray(data.items) ? data.items : []
       const titles = items.map(item => String(item.title ?? "").replace(/\s+/g, " ").trim())
       const invalidTitles = titles.filter(title => !title || feedErrorPattern.test(title))
-      const englishOnly = titles.filter(title => latinPattern.test(title) && !chinesePattern.test(title))
+      const identifiers = titles.map((title, index) => {
+        if (id !== "github" || !/^[\w.-]+\/[\w.-]+$/.test(title)) return false
+        try {
+          const url = new URL(items[index].url)
+          return url.protocol === "https:" && url.hostname === "github.com" && url.pathname === `/${title}`
+        } catch {
+          return false
+        }
+      })
+      const englishOnly = titles.filter((title, index) => !identifiers[index] && latinPattern.test(title) && !chinesePattern.test(title))
       const chineseCount = titles.filter(title => chinesePattern.test(title)).length
       const times = items.map(item => new Date(item.pubDate || item.extra?.date || "").getTime()).filter(Number.isFinite)
       const updated = typeof data.updatedTime === "number" ? data.updatedTime : Date.parse(data.updatedTime)
@@ -47,6 +56,7 @@ async function worker() {
         status: data.status,
         count: items.length,
         chineseCount,
+        identifierOnlyCount: identifiers.filter(Boolean).length,
         englishOnlyCount: englishOnly.length,
         englishOnlySample: englishOnly.slice(0, 3),
         translationComplete: data.translationComplete,
