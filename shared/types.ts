@@ -113,6 +113,7 @@ export interface NewsItem {
 export interface SourceResponse {
   status: "success" | "cache"
   refreshError?: boolean
+  sourceIssues?: string[]
   /** False means the source data is valid but still needs a translation retry. */
   translationComplete?: boolean
   translationIssues?: string[]

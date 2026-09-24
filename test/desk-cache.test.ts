@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { H3Event } from "h3"
+import { SourceUnavailableError, sourceFailure } from "../server/utils/source-failure"
 
 const mocks = vi.hoisted(() => ({
   query: { id: "reuters" } as Record<string, string>,
@@ -81,6 +82,13 @@ describe("desk cache transparency", () => {
     expect(result.status).toBe("success")
     expect(result.refreshError).toBeUndefined()
     expect(mocks.set).toHaveBeenCalledWith("reuters", [{ ...items[0], title: "中文：Previously retrieved news" }])
+  })
+  it("exposes only structured upstream failures alongside unchanged cached news", async () => {
+    mocks.query.latest = "true"
+    mocks.getter.mockRejectedValue(new SourceUnavailableError(["ap-page:http-403"]))
+    expect(await handler(event)).toMatchObject({ sourceIssues: ["ap-page:http-403"], updatedTime: updated, items })
+    expect(sourceFailure("index", new Error("secret request headers"))).toBe("index:request-failed")
+    expect(sourceFailure("index", { name: "FetchError", cause: { name: "TimeoutError" } })).toBe("index:timeout")
   })
   it("coalesces simultaneous manual refreshes for the same source", async () => {
     mocks.query.latest = "true"

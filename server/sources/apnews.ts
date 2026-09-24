@@ -1,6 +1,7 @@
 import { XMLParser } from "fast-xml-parser"
 import type { NewsItem } from "@shared/types"
 import { translateNewsItemsToChinese } from "../utils/translate"
+import { SourceUnavailableError, sourceFailure } from "../utils/source-failure"
 
 const routes = {
   "apnews-top": "https://apnews.com/",
@@ -154,6 +155,7 @@ export function parseAPNewsPage(html: string, url: string) {
 
 function defineAPNewsSource(url: string) {
   return defineSource(async () => {
+    const issues: string[] = []
     const [pageResult, sitemapResult] = await Promise.allSettled([
       myFetch<string, "text">(url, { responseType: "text", timeout: 8000, retry: 0 }),
       myFetch<string, "text">(newsSitemapUrl, { responseType: "text", timeout: 8000, retry: 0 }),
@@ -163,6 +165,8 @@ function defineAPNewsSource(url: string) {
     const sitemapItems = sitemap ? parseAPNewsSitemap(sitemap) : []
     const metadata = new Map(sitemapItems.map(item => [item.url, item]))
     const pageItems = html ? parseAPNewsPage(html, url) : []
+    if (!pageItems.length) issues.push(sourceFailure("ap-page", pageResult.status === "rejected" ? pageResult.reason : undefined))
+    if (!sitemapItems.length) issues.push(sourceFailure("ap-sitemap", sitemapResult.status === "rejected" ? sitemapResult.reason : undefined))
     // A general sitemap must not replace a specific editorial section.
     let items = (pageItems.length ? pageItems : url === routes["apnews-top"] ? sitemapItems.slice(0, 30) : []).map((item) => {
       const official = metadata.get(item.url)
@@ -178,7 +182,9 @@ function defineAPNewsSource(url: string) {
       const bing = `https://www.bing.com/news/search?q=${encodeURIComponent(`site:apnews.com ${topic}`.trim())}&format=rss&sortbydate=1&count=30`
       try {
         items = parseAPNewsBing(await myFetch<string, "text">(bing, { responseType: "text", timeout: 4500, retry: 0 }), url)
-      } catch {
+        if (!items.length) issues.push(sourceFailure("bing-index"))
+      } catch (error) {
+        issues.push(sourceFailure("bing-index", error))
         // Try the independent Google index when Bing is unavailable.
       }
     }
@@ -191,11 +197,13 @@ function defineAPNewsSource(url: string) {
       const feedUrl = feed.href.replace(/\+/g, "%20")
       try {
         items = parseAPNewsIndex(await myFetch<string, "text">(feedUrl, { responseType: "text", timeout: 4500, retry: 0 }))
-      } catch {
+        if (!items.length) issues.push(sourceFailure("google-index"))
+      } catch (error) {
+        issues.push(sourceFailure("google-index", error))
         // The public index can return 503 from some Cloudflare regions.
       }
     }
-    if (!items.length) throw new Error("Cannot fetch AP News page or publisher index")
+    if (!items.length) throw new SourceUnavailableError(issues)
     return translateNewsItemsToChinese(items.slice(0, 30), `apnews:${url}`)
   })
 }

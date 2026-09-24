@@ -63,6 +63,7 @@ async function worker() {
         translationIssues: data.translationIssues,
         invalidTitles,
         refreshError: !!data.refreshError,
+        sourceIssues: data.sourceIssues,
         updatedTime: data.updatedTime,
         newest: times.length ? new Date(Math.max(...times)).toISOString() : null,
         futureDatedCount: times.filter(time => time > Date.now() + 5 * 60_000).length,

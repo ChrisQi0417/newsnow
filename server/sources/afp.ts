@@ -1,5 +1,7 @@
 import type { NewsItem } from "@shared/types"
+import { XMLParser } from "fast-xml-parser"
 import { translateNewsItemsToChinese } from "../utils/translate"
+import { SourceUnavailableError, sourceFailure } from "../utils/source-failure"
 
 const newsHubUrl = "https://www.afp.com/en/node/3753800"
 const officialVideoFeed = defineRSSSource("https://www.youtube.com/feeds/videos.xml?channel_id=UC86dbj-lbDks_hZ5gRKL49Q", {
@@ -7,6 +9,32 @@ const officialVideoFeed = defineRSSSource("https://www.youtube.com/feeds/videos.
   limit: 30,
 })
 const factCheckReaderUrl = "https://r.jina.ai/http://factcheck.afp.com/"
+const factCheckIndexUrl = "https://news.google.com/rss/search?q=site%3Afactcheck.afp.com%20when%3A14d&hl=en-US&gl=US&ceid=US%3Aen"
+
+export function parseAfpFactCheckIndex(raw: string): NewsItem[] {
+  const entries = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" }).parse(raw)?.rss?.channel?.item
+  const seen = new Set<string>()
+  return (Array.isArray(entries) ? entries : entries ? [entries] : []).flatMap((entry): NewsItem[] => {
+    try {
+      const publisher = new URL(entry.source?.url)
+      const url = new URL(entry.link)
+      const title = typeof entry.title === "string" ? entry.title.replace(/\s+-\s+AFP Fact Check$/, "").trim() : ""
+      const pubDate = Date.parse(entry.pubDate)
+      if (publisher.protocol !== "https:" || publisher.hostname !== "factcheck.afp.com"
+        || url.protocol !== "https:" || url.hostname !== "news.google.com" || !url.pathname.startsWith("/rss/articles/")
+        || !title || !Number.isFinite(pubDate) || seen.has(url.href)) {
+        return []
+      }
+      seen.add(url.href)
+      return [{ id: url.href, title, url: url.href, pubDate, extra: {
+        info: "法新社事实核查 · Google News 索引",
+        hover: "来源：AFP Fact Check 官方内容；按发布时间排序，非综合快讯。",
+      } }]
+    } catch {
+      return []
+    }
+  }).sort((a, b) => Number(b.pubDate) - Number(a.pubDate)).slice(0, 30)
+}
 
 function stripAfpMarkup(value: string) {
   return value
@@ -108,36 +136,54 @@ export function parseAfpFactCheckReader(raw: string): NewsItem[] {
 }
 
 export default defineSource(async (event) => {
+  const issues: string[] = []
   try {
     const html = await myFetch<string, "text">(newsHubUrl, {
       responseType: "text",
-      retry: 1,
+      retry: 0,
       timeout: 8000,
     })
     const items = parseAfpNewsHub(html)
     if (items.length) {
       return translateNewsItemsToChinese(items, "afp")
     }
+    issues.push(sourceFailure("afp-hub"))
   } catch (error) {
-    logger.warn("failed to fetch AFP News Hub", error)
+    issues.push(sourceFailure("afp-hub", error))
+  }
+
+  try {
+    const raw = await myFetch<string, "text">(factCheckIndexUrl, { responseType: "text", retry: 0, timeout: 4500 })
+    const items = parseAfpFactCheckIndex(raw)
+    if (items.length) return translateNewsItemsToChinese(items, "afp")
+    issues.push(sourceFailure("afp-index"))
+  } catch (error) {
+    issues.push(sourceFailure("afp-index", error))
   }
 
   try {
     const raw = await myFetch<string, "text">(factCheckReaderUrl, {
       responseType: "text",
-      retry: 1,
+      retry: 0,
       timeout: 8000,
     })
     const items = parseAfpFactCheckReader(raw)
     if (items.length) {
       return translateNewsItemsToChinese(items, "afp")
     }
+    issues.push(sourceFailure("afp-reader"))
   } catch (error) {
-    logger.warn("failed to fetch AFP Fact Check", error)
+    issues.push(sourceFailure("afp-reader", error))
   }
 
-  const items = await officialVideoFeed(event)
-  if (!items.length) throw new Error("Cannot fetch AFP official sources")
+  let items: NewsItem[] = []
+  try {
+    items = await officialVideoFeed(event)
+    if (!items.length) issues.push(sourceFailure("afp-video"))
+  } catch (error) {
+    issues.push(sourceFailure("afp-video", error))
+  }
+  if (!items.length) throw new SourceUnavailableError(issues)
   return items.map(item => ({
     ...item,
     extra: {

@@ -7,6 +7,7 @@ import { getGetter, hasGetter, resolveSourceID } from "#/getters"
 import { getCacheTable } from "#/database/cache"
 import type { CacheInfo } from "#/types"
 import { getTranslationIssues, isChineseOutput, translateNewsItemsForOutput } from "#/utils/translate"
+import { SourceUnavailableError } from "#/utils/source-failure"
 
 const inFlightRefreshes = new Map<SourceID, Promise<NewsItem[]>>()
 
@@ -110,6 +111,7 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
         return {
           status: "cache",
           refreshError: true,
+          sourceIssues: e instanceof SourceUnavailableError ? e.issues : undefined,
           id,
           updatedTime: cache.updated,
           ...cachedItems(cache.items),
