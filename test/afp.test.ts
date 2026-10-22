@@ -1,12 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import afp, { parseAfpFactCheckBing } from "../server/sources/afp"
+import afp, { parseAfpBluesky, parseAfpFactCheckBing } from "../server/sources/afp"
 
-const { fetchMock, videoMock } = vi.hoisted(() => ({ fetchMock: vi.fn(), videoMock: vi.fn() }))
+const { fetchMock } = vi.hoisted(() => ({ fetchMock: vi.fn() }))
 vi.mock("../server/utils/fetch", () => ({ myFetch: fetchMock }))
 vi.mock("../server/utils/translate", () => ({ translateNewsItemsToChinese: async (items: unknown) => items }))
 vi.mock("../server/utils/source", () => ({
   defineSource: (value: unknown) => value,
-  defineRSSSource: () => videoMock,
 }))
 
 const articleUrl = "https://factcheck.afp.com/doc.afp.com.D3V7463"
@@ -19,7 +18,75 @@ function entry(url = articleUrl, publisher = "AFP Fact Check", date = "Wed, 21 O
 
 beforeEach(() => {
   fetchMock.mockReset()
-  videoMock.mockReset().mockResolvedValue([])
+})
+
+const afpDid = "did:plc:r4ve5hjtfjubdwrvlxcad62e"
+function blueskyPost(key = "3mygwokzthk2f", createdAt = "2020-01-01T05:30:23.800Z") {
+  return { post: {
+    uri: `at://${afpDid}/app.bsky.feed.post/${key}`,
+    author: { did: afpDid, handle: "en.afp.com" },
+    record: { $type: "app.bsky.feed.post", text: "Official AFP public update", createdAt },
+  } }
+}
+
+describe("afp official Bluesky feed", () => {
+  it("validates identity, constructs original post links, preserves timestamps and sorts unique posts", () => {
+    const older = blueskyPost()
+    const newer = blueskyPost("3mygv5zml6b2b", "2020-01-02T03:00:00.000Z")
+    const items = parseAfpBluesky({ feed: [older, newer, older] })
+
+    expect(items).toHaveLength(2)
+    expect(items[0]).toMatchObject({
+      id: newer.post.uri,
+      title: "Official AFP public update",
+      url: "https://bsky.app/profile/en.afp.com/post/3mygv5zml6b2b",
+      pubDate: Date.parse(newer.post.record.createdAt),
+      extra: { info: "法新社官方动态 · Bluesky" },
+    })
+    expect(items[1].pubDate).toBe(Date.parse(older.post.record.createdAt))
+  })
+
+  it("rejects forged identities, reposts, replies, malformed URIs, empty text and invalid or future timestamps", () => {
+    const original = blueskyPost()
+    const { post } = original
+    const now = Date.parse("2020-01-03T00:00:00Z")
+    const invalid = [
+      { post: { ...post, author: { ...post.author, did: "did:plc:someoneelse" } } },
+      { post: { ...post, author: { ...post.author, handle: "en.afp.com.evil.example" } } },
+      { ...original, reason: { $type: "app.bsky.feed.defs#reasonRepost" } },
+      { ...original, reply: { parent: {} } },
+      { post: { ...post, record: { ...post.record, reply: { parent: {} } } } },
+      { post: { ...post, uri: post.uri.replace(afpDid, "did:plc:someoneelse") } },
+      { post: { ...post, uri: post.uri.replace("app.bsky.feed.post", "app.bsky.feed.repost") } },
+      { post: { ...post, uri: `${post.uri}/bad` } },
+      { post: { ...post, record: { ...post.record, text: "  \n " } } },
+      { post: { ...post, record: { ...post.record, $type: "app.bsky.feed.repost" } } },
+      blueskyPost(undefined, "not a date"),
+      blueskyPost(undefined, "2020-02-30T05:30:23.800Z"),
+      blueskyPost(undefined, "2020-01-01T24:00:00Z"),
+      blueskyPost(undefined, "2021-01-01T05:30:23.800Z"),
+      null,
+      {},
+    ]
+    for (const entry of invalid) expect(parseAfpBluesky({ feed: [entry] }, now)).toEqual([])
+    for (const data of [null, {}, "<html>unavailable</html>", { feed: {} }, { feed: [] }]) expect(parseAfpBluesky(data)).toEqual([])
+  })
+
+  it("returns official Bluesky content with a single request and no fallback traffic", async () => {
+    fetchMock.mockResolvedValue({ feed: [blueskyPost()] })
+
+    expect(await afp({} as never)).toEqual([expect.objectContaining({
+      url: "https://bsky.app/profile/en.afp.com/post/3mygwokzthk2f",
+      extra: { info: "法新社官方动态 · Bluesky", hover: expect.any(String) },
+    })])
+    expect(fetchMock).toHaveBeenCalledOnce()
+    const [requestUrl, options] = fetchMock.mock.calls[0]
+    const url = new URL(requestUrl)
+    expect(url.origin).toBe("https://public.api.bsky.app")
+    expect(url.pathname).toBe("/xrpc/app.bsky.feed.getAuthorFeed")
+    expect(Object.fromEntries(url.searchParams)).toEqual({ actor: "en.afp.com", limit: "30", filter: "posts_no_replies" })
+    expect(options).toMatchObject({ retry: 0, timeout: 4500 })
+  })
 })
 
 describe("afp fact-check index fallback", () => {
@@ -52,7 +119,7 @@ describe("afp fact-check index fallback", () => {
     expect(parseAfpFactCheckBing(feed(""))).toEqual([])
   })
 
-  it("uses Bing after the official hub and Google fail and stops before the video fallback", async () => {
+  it("uses Bing only after Bluesky, the official hub and Google fail, within four requests", async () => {
     fetchMock.mockImplementation(async (url: string, options: { retry: number, timeout: number }) => {
       expect(options.retry).toBe(0)
       expect(options.timeout).toBeLessThanOrEqual(8000)
@@ -61,15 +128,13 @@ describe("afp fact-check index fallback", () => {
     })
 
     expect(await afp({} as never)).toEqual([expect.objectContaining({ url: articleUrl })])
-    expect(fetchMock.mock.calls.map(([url]) => new URL(url).hostname)).toEqual(["www.afp.com", "news.google.com", "www.bing.com"])
-    expect(videoMock).not.toHaveBeenCalled()
+    expect(fetchMock.mock.calls.map(([url]) => new URL(url).hostname)).toEqual(["public.api.bsky.app", "www.afp.com", "news.google.com", "www.bing.com"])
   })
 
   it("reports empty fallbacks without manufacturing articles or repeating upstream requests", async () => {
     fetchMock.mockResolvedValue(feed(""))
 
-    await expect(afp({} as never)).rejects.toMatchObject({ issues: ["afp-hub:empty", "afp-index:empty", "afp-bing:empty", "afp-video:empty"] })
-    expect(fetchMock).toHaveBeenCalledTimes(3)
-    expect(videoMock).toHaveBeenCalledOnce()
+    await expect(afp({} as never)).rejects.toMatchObject({ issues: ["afp-bluesky:empty", "afp-hub:empty", "afp-index:empty", "afp-bing:empty"] })
+    expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 })

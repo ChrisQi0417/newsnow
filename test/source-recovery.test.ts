@@ -39,13 +39,14 @@ describe("source outage recovery", () => {
     const index = feed(entry("afp", "https://factcheck.afp.com").replace(" - AP News", " - AFP Fact Check"))
     fetchMock.mockReset().mockImplementation(async (url: string, options: { retry: number }) => {
       expect(options.retry).toBe(0)
+      if (new URL(url).hostname === "public.api.bsky.app") return { error: "unavailable" }
       return new URL(url).hostname === "www.afp.com" ? "<h1>The news hub</h1>" : index
     })
     expect(await afp({} as never)).toEqual([expect.objectContaining({
       title: "Verified news headline",
       extra: expect.objectContaining({ info: "法新社事实核查 · Google News 索引" }),
     })])
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
     expect(parseAfpFactCheckIndex(feed(entry("spoof", "https://factcheck.afp.com.evil.example")))).toEqual([])
     expect(parseAfpFactCheckIndex(feed(entry("bad", "https://factcheck.afp.com", "bad date")))).toEqual([])
     expect(parseAfpFactCheckIndex(index.replace("https://news.google.com/rss/articles/afp", "https://evil.example/afp"))).toEqual([])
