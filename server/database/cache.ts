@@ -2,9 +2,12 @@ import process from "node:process"
 import type { NewsItem, SourceID } from "@shared/types"
 import type { Database } from "db0"
 import type { CacheInfo, CacheRow } from "../types"
+import { parseSourceRetryState } from "../utils/source-retry"
+import type { SourceRetryState } from "../utils/source-retry"
 
 const edgeCacheBaseUrl = "https://newsnow-1nq.pages.dev/__internal-cache/sources-v1"
 const edgeCacheMaxAge = 7 * 24 * 60 * 60
+const edgeRetryBaseUrl = "https://newsnow-1nq.pages.dev/__internal-cache/source-retry-v1"
 
 export interface EdgeRuntimeCache {
   delete: (request: Request) => Promise<boolean>
@@ -19,6 +22,10 @@ function getRuntimeCache() {
 
 function edgeCacheRequest(key: string) {
   return new Request(`${edgeCacheBaseUrl}/${encodeURIComponent(key)}`)
+}
+
+function edgeRetryRequest(key: string) {
+  return new Request(`${edgeRetryBaseUrl}/${encodeURIComponent(key)}`)
 }
 
 export class EdgeCache {
@@ -69,6 +76,26 @@ export class EdgeCache {
   async delete(key: string) {
     return this.cache.delete(edgeCacheRequest(key))
   }
+
+  async getRetry(key: string): Promise<SourceRetryState | undefined> {
+    const response = await this.cache.match(edgeRetryRequest(key))
+    if (!response?.ok) return
+    const value = await response.json() as { id?: unknown, state?: unknown }
+    return value.id === key ? parseSourceRetryState(value.state) : undefined
+  }
+
+  async setRetry(key: string, state: SourceRetryState) {
+    await this.cache.put(edgeRetryRequest(key), new Response(JSON.stringify({ id: key, state }), {
+      headers: {
+        "Cache-Control": `public, max-age=${edgeCacheMaxAge}`,
+        "Content-Type": "application/json; charset=utf-8",
+      },
+    }))
+  }
+
+  async clearRetry(key: string) {
+    return this.cache.delete(edgeRetryRequest(key))
+  }
 }
 
 export class Cache {
@@ -82,6 +109,12 @@ export class Cache {
       CREATE TABLE IF NOT EXISTS cache (
         id TEXT PRIMARY KEY,
         updated INTEGER,
+        data TEXT
+      );
+    `).run()
+    await this.db.prepare(`
+      CREATE TABLE IF NOT EXISTS source_retry (
+        id TEXT PRIMARY KEY,
         data TEXT
       );
     `).run()
@@ -136,6 +169,19 @@ export class Cache {
 
   async delete(key: string) {
     return await this.db.prepare(`DELETE FROM cache WHERE id = ?`).run(key)
+  }
+
+  async getRetry(key: string): Promise<SourceRetryState | undefined> {
+    const row = await this.db.prepare(`SELECT data FROM source_retry WHERE id = ?`).get(key) as { data: string } | undefined
+    return row ? parseSourceRetryState(JSON.parse(row.data)) : undefined
+  }
+
+  async setRetry(key: string, state: SourceRetryState) {
+    await this.db.prepare(`INSERT OR REPLACE INTO source_retry (id, data) VALUES (?, ?)`).run(key, JSON.stringify(state))
+  }
+
+  async clearRetry(key: string) {
+    return this.db.prepare(`DELETE FROM source_retry WHERE id = ?`).run(key)
   }
 }
 

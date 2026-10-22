@@ -1,11 +1,19 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { completeSourceRefresh, failSourceRefresh, refetchSources, requestSourceRefresh, resetSourceRefreshState, scheduleSourceAutoRefresh, sourceNeedsRefresh, sourceRefreshInterval, withSourceRequestLimit } from "../src/utils/data"
+import { cacheSources, completeSourceRefresh, failSourceRefresh, refetchSources, requestSourceRefresh, resetSourceRefreshState, scheduleSourceAutoRefresh, sourceNeedsRefresh, sourceRefreshInterval, withSourceRequestLimit } from "../src/utils/data"
 
 beforeEach(() => {
+  cacheSources.clear()
   resetSourceRefreshState()
 })
 
 describe("automatic source refresh", () => {
+  it("respects the server cooldown for both manual and automatic refresh", () => {
+    cacheSources.set("reuters", { id: "reuters", status: "cache", items: [], updatedTime: 1000, nextRetryAt: 901000 })
+    expect(requestSourceRefresh("reuters", 2000)).toBe(false)
+    expect(scheduleSourceAutoRefresh("reuters", 2000)).toBe(false)
+    expect(refetchSources.size).toBe(0)
+    expect(requestSourceRefresh("reuters", 901000)).toBe(true)
+  })
   it("throttles consecutive manual refreshes after the previous one completes", () => {
     expect(requestSourceRefresh("weather", 1000)).toBe(true)
     completeSourceRefresh("weather", 1200)

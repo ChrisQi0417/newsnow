@@ -8,8 +8,40 @@ const officialVideoFeed = defineRSSSource("https://www.youtube.com/feeds/videos.
   translate: true,
   limit: 30,
 })
-const factCheckReaderUrl = "https://r.jina.ai/http://factcheck.afp.com/"
 const factCheckIndexUrl = "https://news.google.com/rss/search?q=site%3Afactcheck.afp.com%20when%3A14d&hl=en-US&gl=US&ceid=US%3Aen"
+const factCheckBingUrl = "https://www.bing.com/news/search?q=site%3Afactcheck.afp.com&format=rss&sortbydate=1&count=30"
+
+export function parseAfpFactCheckBing(raw: string): NewsItem[] {
+  const entries = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" }).parse(raw)?.rss?.channel?.item
+  const seen = new Set<string>()
+  return (Array.isArray(entries) ? entries : entries ? [entries] : []).flatMap((entry): NewsItem[] => {
+    try {
+      const publisher = typeof entry["News:Source"] === "string" ? entry["News:Source"].trim() : ""
+      const link = new URL(entry.link)
+      if (!["http:", "https:"].includes(link.protocol)) return []
+      const url = link.hostname === "www.bing.com" && link.pathname === "/news/apiclick.aspx"
+        ? new URL(link.searchParams.get("url") || "")
+        : link
+      const title = typeof entry.title === "string" ? entry.title.replace(/\s+-\s+(?:AFP Fact Check|AFP\.com)$/i, "").trim() : ""
+      const pubDate = Date.parse(entry.pubDate)
+      if (!/^(?:AFP Fact Check|AFP\.com)$/i.test(publisher)
+        || url.protocol !== "https:" || url.hostname !== "factcheck.afp.com" || url.port || url.username || url.password
+        || !/^\/doc\.afp\.com\.[a-z\d]+\/?$/i.test(url.pathname)
+        || !title || !Number.isFinite(pubDate)) {
+        return []
+      }
+      url.hash = ""
+      if (seen.has(url.href)) return []
+      seen.add(url.href)
+      return [{ id: url.href, title, url: url.href, pubDate, extra: {
+        info: "法新社事实核查 · Bing 新闻索引",
+        hover: "来源：AFP Fact Check 官方原文；经 Bing 按时间检索，非综合快讯。",
+      } }]
+    } catch {
+      return []
+    }
+  }).sort((a, b) => Number(b.pubDate) - Number(a.pubDate)).slice(0, 30)
+}
 
 export function parseAfpFactCheckIndex(raw: string): NewsItem[] {
   const entries = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" }).parse(raw)?.rss?.channel?.item
@@ -162,18 +194,18 @@ export default defineSource(async (event) => {
   }
 
   try {
-    const raw = await myFetch<string, "text">(factCheckReaderUrl, {
+    const raw = await myFetch<string, "text">(factCheckBingUrl, {
       responseType: "text",
       retry: 0,
-      timeout: 8000,
+      timeout: 4500,
     })
-    const items = parseAfpFactCheckReader(raw)
+    const items = parseAfpFactCheckBing(raw)
     if (items.length) {
       return translateNewsItemsToChinese(items, "afp")
     }
-    issues.push(sourceFailure("afp-reader"))
+    issues.push(sourceFailure("afp-bing"))
   } catch (error) {
-    issues.push(sourceFailure("afp-reader", error))
+    issues.push(sourceFailure("afp-bing", error))
   }
 
   let items: NewsItem[] = []

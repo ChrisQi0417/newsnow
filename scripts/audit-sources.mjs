@@ -44,6 +44,9 @@ async function worker() {
       })
       const englishOnly = titles.filter((title, index) => !identifiers[index] && latinPattern.test(title) && !chinesePattern.test(title))
       const chineseCount = titles.filter(title => chinesePattern.test(title)).length
+      const unavailableItemIds = id === "weather" ? items.filter(item => String(item.id).endsWith("-unavailable")).map(item => item.id) : []
+      const missingAccounts = id === "twitter" ? ["thsottiaux", "openai"].filter(account => !items.some(item => String(item.url).toLowerCase().includes(`/${account}/status/`))) : []
+      const dataComplete = unavailableItemIds.length === 0 && missingAccounts.length === 0
       const times = items.map(item => new Date(item.pubDate || item.extra?.date || "").getTime()).filter(Number.isFinite)
       const updated = typeof data.updatedTime === "number" ? data.updatedTime : Date.parse(data.updatedTime)
       const cacheAgeMs = Number.isFinite(updated) ? Date.now() - updated : null
@@ -64,6 +67,9 @@ async function worker() {
         invalidTitles,
         refreshError: !!data.refreshError,
         sourceIssues: data.sourceIssues,
+        nextRetryAt: data.nextRetryAt ?? data.data?.nextRetryAt,
+        errorMessage: response.ok ? undefined : data.message,
+        errorIssues: response.ok ? undefined : data.data?.sourceIssues,
         updatedTime: data.updatedTime,
         newest: times.length ? new Date(Math.max(...times)).toISOString() : null,
         futureDatedCount: times.filter(time => time > Date.now() + 5 * 60_000).length,
@@ -71,8 +77,11 @@ async function worker() {
         available,
         cacheFresh,
         chineseComplete,
+        dataComplete,
+        unavailableItemIds,
+        missingAccounts,
         ms: Date.now() - start,
-        ok: available && cacheFresh && chineseComplete,
+        ok: available && cacheFresh && chineseComplete && dataComplete,
       })
     } catch (error) {
       results.push({ id, ok: false, error: error.message, ms: Date.now() - start })

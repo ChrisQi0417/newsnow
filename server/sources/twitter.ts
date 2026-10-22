@@ -252,17 +252,27 @@ async function mapConcurrent<T, R>(items: T[], concurrency: number, mapper: (ite
   return results
 }
 
+function isRateLimited(error: unknown) {
+  const failure = error as { statusCode?: number, status?: number, response?: { status?: number } } | undefined
+  return (failure?.statusCode ?? failure?.status ?? failure?.response?.status) === 429
+}
+
 async function fetchVerifiedTiboPosts(account: XAccount) {
   const feed = await myFetch<TiboFeedResponse>("https://codex-reset.com/api/feed", {
     headers: {
       "Accept": "application/json",
       "User-Agent": "NewsNow Tibo timeline",
     },
-    retry: 1,
     timeout: 6000,
   })
   const candidates = parseTiboFeedCandidates(feed, account)
-  const verified = await mapConcurrent(candidates, 5, async (candidate) => {
+  // Keep the previous two six-second verification waves as a total budget,
+  // while limiting the burst to two requests and stopping after rate limiting.
+  const deadline = Date.now() + 12000
+  let rateLimitError: unknown
+  const verified = await mapConcurrent(candidates, 2, async (candidate) => {
+    const remaining = deadline - Date.now()
+    if (rateLimitError || remaining <= 0) return undefined
     try {
       const url = new URL("https://publish.x.com/oembed")
       url.searchParams.set("url", candidate.url)
@@ -273,15 +283,17 @@ async function fetchVerifiedTiboPosts(account: XAccount) {
           "Accept": "application/json",
           "User-Agent": "NewsNow X verification",
         },
-        retry: 1,
-        timeout: 6000,
+        timeout: Math.min(6000, remaining),
       })
       return parseXOEmbedPost(data, account, candidate)
-    } catch {
+    } catch (error) {
+      if (isRateLimited(error)) rateLimitError = error
       return undefined
     }
   })
-  return curateFixedXPosts(verified.filter((item): item is NewsItem => Boolean(item)), candidates.length)
+  const items = curateFixedXPosts(verified.filter((item): item is NewsItem => Boolean(item)), candidates.length)
+  if (!items.length && rateLimitError) throw rateLimitError
+  return items
 }
 
 async function fetchEmbeddedAccountPosts(account: XAccount) {
@@ -289,52 +301,48 @@ async function fetchEmbeddedAccountPosts(account: XAccount) {
   const html = await myFetch<string, "text">(embedUrl, {
     responseType: "text",
     headers: browserHeaders,
-    retry: 1,
     timeout: 8000,
   })
   return parseXEmbeddedProfile(html, account)
 }
 
 async function fetchAccountPosts(account: XAccount) {
-  const embeddedPromise = fetchEmbeddedAccountPosts(account).catch((error) => {
-    logger.warn(`failed to fetch embedded X timeline @${account.handle}`, error)
-    return []
-  })
-
   if (account.handle === "thsottiaux") {
-    const [embedded, verified] = await Promise.all([
-      embeddedPromise,
-      fetchVerifiedTiboPosts(account).catch((error) => {
-        logger.warn("failed to fetch verified Tibo timeline", error)
-        return []
-      }),
-    ])
-    if (verified.length) return verified
+    try {
+      const verified = await fetchVerifiedTiboPosts(account)
+      if (verified.length) return verified
+    } catch (error) {
+      logger.warn("failed to fetch verified Tibo timeline", error)
+      if (isRateLimited(error)) return []
+    }
+  }
+
+  try {
+    const embedded = await fetchEmbeddedAccountPosts(account)
     if (embedded.length) return embedded
-  } else {
-    const embedded = await embeddedPromise
-    if (embedded.length) return embedded
+  } catch (error) {
+    logger.warn(`failed to fetch embedded X timeline @${account.handle}`, error)
+    if (isRateLimited(error)) return []
   }
 
   const profileUrl = `https://x.com/${account.handle}`
   const html = await myFetch<string, "text">(profileUrl, {
     responseType: "text",
     headers: browserHeaders,
-    retry: 1,
     timeout: 8000,
   })
   return parseXProfilePage(html, account)
 }
 
 export default defineSource(async () => {
-  const results = await Promise.all(fixedXAccounts.map(async (account) => {
+  const results: NewsItem[][] = []
+  for (const account of fixedXAccounts) {
     try {
-      return await fetchAccountPosts(account)
+      results.push(await fetchAccountPosts(account))
     } catch (error) {
       logger.warn(`failed to fetch all X sources for @${account.handle}`, error)
-      return []
     }
-  }))
+  }
 
   const items = curateFixedXPosts(results.flat())
   if (!items.length) throw new Error("Cannot fetch Tibo or OpenAI X posts")

@@ -563,18 +563,18 @@ async function fetchWeather(location: WeatherLocation) {
   url.searchParams.set("forecast_days", "1")
   url.searchParams.set("timeformat", "unixtime")
   url.searchParams.set("timezone", "auto")
-  const response = await myFetch<WeatherResponse>(url, { retry: 1, timeout: 8000 })
+  const response = await myFetch<WeatherResponse>(url, { timeout: 8000 })
   const item = weatherToNewsItem(location, response)
   if (!item) throw new Error(`Cannot parse weather for ${location.label}`)
   return item
 }
 
 async function fetchJmaCyclones() {
-  const feed = await myFetch<string, "text">(jmaFeedUrl, { responseType: "text", retry: 1, timeout: 10000 })
+  const feed = await myFetch<string, "text">(jmaFeedUrl, { responseType: "text", timeout: 10000 })
   const entries = parseJmaFeedEntries(feed)
   const results = await Promise.all(entries.map(async (entry) => {
     try {
-      const bulletin = await myFetch<string, "text">(entry.url, { responseType: "text", retry: 1, timeout: 8000 })
+      const bulletin = await myFetch<string, "text">(entry.url, { responseType: "text", timeout: 8000 })
       return parseJmaTyphoonBulletin(bulletin, entry.url)
     } catch (error) {
       logger.warn(`failed to fetch JMA typhoon bulletin ${entry.code}`, error)
@@ -586,7 +586,6 @@ async function fetchJmaCyclones() {
 async function fetchNhcCyclones() {
   const response = await myFetch<NhcResponse>(nhcCurrentStormsUrl, {
     headers: { "User-Agent": "NewsNow weather monitor" },
-    retry: 1,
     timeout: 8000,
   })
   return parseNhcStorms(response)
@@ -619,7 +618,6 @@ async function fetchCycloneItems() {
 async function fetchEarthquakeItems() {
   const response = await myFetch<UsgsEarthquakeResponse>(usgsEarthquakeFeedUrl, {
     headers: { "User-Agent": "NewsNow global earthquake monitor" },
-    retry: 1,
     timeout: 8000,
   })
   const earthquakes = parseUsgsEarthquakes(response)

@@ -125,6 +125,13 @@ function SourcePanel({ ids, states, search, onOpen }: { ids: SourceID[], states:
           {data?.translationComplete === false ? " · 保留原文" : ""}
         </span>
       </div>
+      {data?.nextRetryAt && data.nextRetryAt > Date.now() && (
+        <p className="source-warning">
+          来源正在冷却，
+          {new Date(data.nextRetryAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}
+          后可重试。
+        </p>
+      )}
       {ids.length > 1 && (
         <div className="source-category-tabs" aria-label={`${sourcePublisherName(id)}内容分类`}>
           {ids.map(sourceId => (

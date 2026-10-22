@@ -64,7 +64,6 @@ export function parseTruthSocialFeed(raw: string): NewsItem[] {
 export default defineSource(async () => {
   const raw = await myFetch<string, "text">("https://trumpstruth.org/feed", {
     responseType: "text",
-    retry: 1,
     timeout: 6000,
   })
   return translateNewsItemsToChinese(parseTruthSocialFeed(raw), "truthsocial")

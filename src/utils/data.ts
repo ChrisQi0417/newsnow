@@ -25,6 +25,7 @@ export function sourceNeedsRefresh(id: SourceID, updatedTime: number | string | 
 }
 
 export function scheduleSourceAutoRefresh(id: SourceID, now = Date.now()) {
+  if ((cacheSources.get(id)?.nextRetryAt ?? 0) > now) return false
   if (refetchSources.has(id)) return false
 
   const lastRefresh = sourceAutoRefreshTimes.get(id)
@@ -35,6 +36,7 @@ export function scheduleSourceAutoRefresh(id: SourceID, now = Date.now()) {
 }
 
 export function requestSourceRefresh(id: SourceID, now = Date.now()) {
+  if ((cacheSources.get(id)?.nextRetryAt ?? 0) > now) return false
   if (refetchSources.has(id)) return false
   const lastManualRefresh = manualRefreshTimes.get(id)
   if (lastManualRefresh !== undefined && now - lastManualRefresh < ManualRefreshCooldown) return false

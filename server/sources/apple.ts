@@ -309,7 +309,6 @@ export default defineSource(async () => {
     const raw = await myFetch<string, "text">(feed.url, {
       responseType: "text",
       headers: browserHeaders,
-      retry: 1,
       timeout: 10000,
     })
     return parseAppleNewsPodcastFeed(raw, feed)
@@ -320,7 +319,6 @@ export default defineSource(async () => {
     const html = await myFetch<string, "text">(officialPageUrl, {
       responseType: "text",
       headers: browserHeaders,
-      retry: 1,
       timeout: 8000,
     })
     items = parseAppleNewsTodayPage(html)

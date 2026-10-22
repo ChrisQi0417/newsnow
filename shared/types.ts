@@ -114,6 +114,8 @@ export interface SourceResponse {
   status: "success" | "cache"
   refreshError?: boolean
   sourceIssues?: string[]
+  /** Earliest retry after an upstream failure; manual refresh also respects it. */
+  nextRetryAt?: number
   /** False means the source data is valid but still needs a translation retry. */
   translationComplete?: boolean
   translationIssues?: string[]
