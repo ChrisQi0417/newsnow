@@ -139,7 +139,8 @@ describe("desk cache transparency", () => {
     expect(await handler(event)).toEqual(first)
     expect(mocks.getter).toHaveBeenCalledOnce()
     expect(mocks.setRetry).toHaveBeenCalledOnce()
-    expect(mocks.setHeader).toHaveBeenLastCalledWith(event, "Retry-After", 900)
+    expect(mocks.setHeader).toHaveBeenCalledWith(event, "Retry-After", 900)
+    expect(mocks.setHeader).toHaveBeenCalledWith(event, "X-NewsNow-Source-Issues", "ap-page:http-429")
   })
 
   it("returns a retryable 503 without a cache and does not repeatedly contact upstream", async () => {

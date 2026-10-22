@@ -80,6 +80,9 @@ async function refreshSource(id: SourceID, event: H3Event, cacheTable: Awaited<R
 
 function deferSourceRefresh(event: H3Event, id: SourceID, retry: SourceRetryState, cache?: CacheInfo): SourceResponse & { nextRetryAt: number } {
   setHeader(event, "Retry-After", Math.max(1, Math.ceil((retry.nextRetryAt - Date.now()) / 1000)))
+  // Nitro's production error renderer omits custom error data on a 503.
+  // Keep the already-sanitized diagnostic codes available without raw errors.
+  setHeader(event, "X-NewsNow-Source-Issues", retry.issues.join(","))
   if (cache?.items.length) {
     return {
       status: "cache",
