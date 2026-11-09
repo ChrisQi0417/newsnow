@@ -55,12 +55,13 @@ describe("source outage recovery", () => {
   it("reports bounded AP failure codes without leaking upstream error messages", async () => {
     fetchMock.mockReset().mockRejectedValue(Object.assign(new Error("private upstream details"), { statusCode: 403 }))
     await expect(apnews["apnews-top"]!({} as never)).rejects.toMatchObject({ issues: [
+      "ap-public:http-403",
       "ap-page:http-403",
       "ap-sitemap:http-403",
       "bing-index:http-403",
       "google-index:http-403",
     ] })
-    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(fetchMock).toHaveBeenCalledTimes(5)
   })
 
   it("accepts only dated AP publisher entries, deduplicates and sorts newest first", () => {
@@ -78,6 +79,7 @@ describe("source outage recovery", () => {
 
   it.each(["apnews-top", "apnews-world", "apnews-business", "apnews-fact-check"])("recovers %s when the official site rejects automated access", async (id) => {
     fetchMock.mockReset().mockImplementation(async (url: string) => {
+      if (new URL(url).hostname === "public.api.bsky.app") return { feed: [] }
       if (new URL(url).hostname === "apnews.com") throw new Error("403 Forbidden")
       expect(new URL(url).hostname).toBe("www.bing.com")
       expect(new URL(url).searchParams.get("q")).toContain("site:apnews.com")
@@ -88,7 +90,7 @@ describe("source outage recovery", () => {
     const getter = apnews[id as keyof typeof apnews]!
     const items = await getter({} as never)
     expect(items).toHaveLength(1)
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenCalledTimes(id === "apnews-top" ? 4 : 3)
   })
 
   it("uses NHK's current API and preserves its publication timestamp and article URL", async () => {

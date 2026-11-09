@@ -3,6 +3,14 @@ import type { SourceID } from "@shared/types"
 export const SourceRetryBaseDelay = 15 * 60_000
 export const SourceRetryMaxDelay = 6 * 60 * 60_000
 
+type SourceRetryKey = SourceID | "reuters-public-v1"
+
+export function sourceRetryKey(id: SourceID): SourceRetryKey {
+  // Reuters now uses a different official public publishing channel. Keep the
+  // old sitemap's refusal cooldown intact; this collector never requests it.
+  return id === "reuters" ? "reuters-public-v1" : id
+}
+
 export interface SourceRetryState {
   failures: number
   lastAttemptAt: number
@@ -18,10 +26,10 @@ export interface SourceRetryStore {
 
 // Retain protection when persistence is temporarily unavailable. This is an
 // instance-local fallback, not a cross-isolate lock.
-const retryStates = new Map<SourceID, { state: SourceRetryState, persisted: boolean }>()
-const retryVersions = new Map<SourceID, number>()
+const retryStates = new Map<SourceRetryKey, { state: SourceRetryState, persisted: boolean }>()
+const retryVersions = new Map<SourceRetryKey, number>()
 
-function advanceRetryVersion(id: SourceID) {
+function advanceRetryVersion(id: SourceRetryKey) {
   retryVersions.set(id, (retryVersions.get(id) ?? 0) + 1)
 }
 
@@ -48,7 +56,7 @@ export function parseSourceRetryState(value: unknown): SourceRetryState | undefi
   }
 }
 
-export async function getSourceRetry(id: SourceID, store?: SourceRetryStore): Promise<SourceRetryState | undefined> {
+export async function getSourceRetry(id: SourceRetryKey, store?: SourceRetryStore): Promise<SourceRetryState | undefined> {
   if (!store?.getRetry) return retryStates.get(id)?.state
   const version = retryVersions.get(id) ?? 0
   try {
@@ -74,7 +82,7 @@ export async function getSourceRetry(id: SourceID, store?: SourceRetryStore): Pr
   return retryStates.get(id)?.state
 }
 
-export async function recordSourceFailure(id: SourceID, previous: SourceRetryState | undefined, issues: string[], store?: SourceRetryStore, now = Date.now()) {
+export async function recordSourceFailure(id: SourceRetryKey, previous: SourceRetryState | undefined, issues: string[], store?: SourceRetryStore, now = Date.now()) {
   const failures = Math.min(6, (previous?.failures ?? 0) + 1)
   const state: SourceRetryState = {
     failures,
@@ -94,7 +102,7 @@ export async function recordSourceFailure(id: SourceID, previous: SourceRetrySta
   return state
 }
 
-export async function clearSourceRetry(id: SourceID, store?: SourceRetryStore) {
+export async function clearSourceRetry(id: SourceRetryKey, store?: SourceRetryStore) {
   advanceRetryVersion(id)
   retryStates.delete(id)
   try {

@@ -1,6 +1,10 @@
 import { load } from "cheerio"
 import type { NewsItem } from "@shared/types"
 import { translateNewsItemsToChinese } from "../utils/translate"
+import { getCacheTable } from "../database/cache"
+import { SourceUnavailableError, sourceFailure } from "../utils/source-failure"
+import { loadXAccount } from "../utils/twitter-account-cache"
+import type { XAccountFetchResult } from "../utils/twitter-account-cache"
 
 export interface XAccount {
   displayName: string
@@ -293,7 +297,7 @@ async function fetchVerifiedTiboPosts(account: XAccount) {
   })
   const items = curateFixedXPosts(verified.filter((item): item is NewsItem => Boolean(item)), candidates.length)
   if (!items.length && rateLimitError) throw rateLimitError
-  return items
+  return { items, rateLimitError }
 }
 
 async function fetchEmbeddedAccountPosts(account: XAccount) {
@@ -306,45 +310,62 @@ async function fetchEmbeddedAccountPosts(account: XAccount) {
   return parseXEmbeddedProfile(html, account)
 }
 
-async function fetchAccountPosts(account: XAccount) {
+async function fetchAccountPosts(account: XAccount): Promise<XAccountFetchResult> {
+  const stage = `x-${account.handle.toLowerCase()}`
+  const issues: string[] = []
   if (account.handle === "thsottiaux") {
     try {
       const verified = await fetchVerifiedTiboPosts(account)
-      if (verified.length) return verified
+      if (verified.items.length) return { items: verified.items, issues: verified.rateLimitError ? [sourceFailure(stage, verified.rateLimitError)] : [] }
+      issues.push(sourceFailure(`${stage}-verified`))
     } catch (error) {
       logger.warn("failed to fetch verified Tibo timeline", error)
-      if (isRateLimited(error)) return []
+      issues.push(sourceFailure(`${stage}-verified`, error))
+      if (isRateLimited(error)) throw new SourceUnavailableError(issues)
     }
   }
 
   try {
     const embedded = await fetchEmbeddedAccountPosts(account)
-    if (embedded.length) return embedded
+    if (embedded.length) return { items: embedded }
+    issues.push(sourceFailure(`${stage}-embed`))
   } catch (error) {
     logger.warn(`failed to fetch embedded X timeline @${account.handle}`, error)
-    if (isRateLimited(error)) return []
+    issues.push(sourceFailure(`${stage}-embed`, error))
+    if (isRateLimited(error)) throw new SourceUnavailableError(issues)
   }
 
   const profileUrl = `https://x.com/${account.handle}`
-  const html = await myFetch<string, "text">(profileUrl, {
-    responseType: "text",
-    headers: browserHeaders,
-    timeout: 8000,
-  })
-  return parseXProfilePage(html, account)
+  try {
+    const html = await myFetch<string, "text">(profileUrl, {
+      responseType: "text",
+      headers: browserHeaders,
+      timeout: 8000,
+    })
+    const items = parseXProfilePage(html, account)
+    if (items.length) return { items }
+    issues.push(sourceFailure(`${stage}-profile`))
+  } catch (error) {
+    issues.push(sourceFailure(`${stage}-profile`, error))
+  }
+  throw new SourceUnavailableError(issues)
 }
 
-export default defineSource(async () => {
-  const results: NewsItem[][] = []
+export default defineSource(async (event) => {
+  const store = await getCacheTable()
+  let legacyCache: Promise<Awaited<ReturnType<NonNullable<typeof store>["get"]>>> | undefined
+  const loadLegacyContent = () => legacyCache ??= store?.get("twitter").catch(() => undefined) ?? Promise.resolve(undefined)
+  const results: Awaited<ReturnType<typeof loadXAccount>>[] = []
   for (const account of fixedXAccounts) {
-    try {
-      results.push(await fetchAccountPosts(account))
-    } catch (error) {
-      logger.warn(`failed to fetch all X sources for @${account.handle}`, error)
-    }
+    results.push(await loadXAccount(account.handle, store, () => fetchAccountPosts(account), event?.context?.newsnowManualRefresh === true, async () => {
+      const legacy = await loadLegacyContent()
+      const accountTime = legacy?.accountStatus?.find(status => status.handle === account.handle)?.updatedTime
+      return legacy ? { items: legacy.items, updated: accountTime ?? legacy.updated } : undefined
+    }))
   }
 
-  const items = curateFixedXPosts(results.flat())
-  if (!items.length) throw new Error("Cannot fetch Tibo or OpenAI X posts")
+  if (event?.context) event.context.newsnowAccountStatus = results.map(result => result.status)
+  const items = curateFixedXPosts(results.flatMap(result => result.items), 30)
+  if (!items.length) throw new SourceUnavailableError(results.flatMap(result => result.status.issues))
   return translateNewsItemsToChinese(items, "twitter")
 })

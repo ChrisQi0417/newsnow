@@ -7,6 +7,13 @@ function article(sourceId: DeskArticle["sourceId"], id: string, url = "https://e
 }
 
 describe("information desk", () => {
+  it("warns about a cooling account even when its previous posts are retained", () => {
+    const old = { ...article("twitter", "1").item, url: "https://x.com/OpenAI/status/1" }
+    const warning = sourceWarning("twitter", [old], 2000, [{ handle: "OpenAI", status: "stale", updatedTime: 1000, nextRetryAt: 901000, issues: ["x-embed:http-429"] }])
+    expect(warning).toContain("OpenAI 显示")
+    expect(warning).toContain("采集的旧内容")
+    expect(warning).toContain("后可重试")
+  })
   it("warns about a reachable but stale NHK feed without flagging current news", () => {
     const item = article("nhk", "1").item
     expect(sourceWarning("nhk", [item], Date.parse("2026-09-11T10:00:00Z"))).toContain("48")

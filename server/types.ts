@@ -1,4 +1,4 @@
-import type { NewsItem, SourceID } from "@shared/types"
+import type { NewsItem, SourceAccountStatus, SourceID } from "@shared/types"
 import type { H3Event } from "h3"
 
 export interface RSSInfo {
@@ -20,6 +20,7 @@ export interface CacheInfo {
   id: SourceID
   items: NewsItem[]
   updated: number
+  accountStatus?: SourceAccountStatus[]
 }
 
 export interface CacheRow {

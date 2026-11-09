@@ -33,7 +33,7 @@ export function DeskIcon({ name }: { name: string }) {
 
 function SourceLoader({ id, onChange }: { id: SourceID, onChange: (id: SourceID, state: FeedState) => void }) {
   const { data, isFetching, isError } = useSourceFeed(id)
-  useEffect(() => onChange(id, { data, fetching: isFetching, error: isError || !!data?.refreshError }), [id, data, isFetching, isError, onChange])
+  useEffect(() => onChange(id, { data, fetching: isFetching, error: isError || !!data?.refreshError || !!data?.partial }), [id, data, isFetching, isError, onChange])
   return null
 }
 
@@ -91,7 +91,7 @@ function SourcePanel({ ids, states, search, onOpen }: { ids: SourceID[], states:
   const { isFocused, toggleFocus } = useFocusWith(id)
   const { refresh } = useRefetch()
   const data = state?.data
-  const warning = data && sourceWarning(id, data.items)
+  const warning = data && sourceWarning(id, data.items, Date.now(), data.accountStatus)
   const items = (data?.items || []).map(item => ({ sourceId: id, item })).filter(article => matchesArticle(article, search)).filter(({ item }) => id !== "weather" || weatherTab === "all" || String(item.id).startsWith(weatherTab)).filter(({ item }) => id !== "twitter" || account === "all" || item.url.toLowerCase().includes(`/${account}/status/`))
   const isStale = data && Date.now() - new Date(data.updatedTime).getTime() > Math.max(sources[id].interval * 2, 15 * 60_000)
   if (search && data && !items.length) return null
@@ -109,7 +109,7 @@ function SourcePanel({ ids, states, search, onOpen }: { ids: SourceID[], states:
       <div className={`source-status ${state?.error || isStale ? "warning" : ""}`}>
         <span className={`status-dot ${state?.fetching ? "busy" : ""}`} />
         {state?.error
-          ? (data ? "更新失败 · 显示上次内容" : "来源暂时不可用")
+          ? (data?.partial ? "部分账号更新失败 · 显示可用内容" : data ? "更新失败 · 显示上次内容" : "来源暂时不可用")
           : state?.fetching
             ? "正在获取更新"
             : data
@@ -288,7 +288,7 @@ export function Desk({ id }: { id: FixedColumnID }) {
   const [states, setStates] = useState<Partial<Record<SourceID, FeedState>>>(() => Object.fromEntries(
     [...new Set([...metadata.realtime.sources, ...metadata.hottest.sources])].flatMap((sourceId) => {
       const data = cacheSources.get(sourceId) || readSourceSnapshot(sourceId)
-      return data ? [[sourceId, { data, fetching: false, error: !!data.refreshError }]] : []
+      return data ? [[sourceId, { data, fetching: false, error: !!data.refreshError || !!data.partial }]] : []
     }),
   ))
   const [selected, setSelected] = useState<DeskArticle | null>(null)

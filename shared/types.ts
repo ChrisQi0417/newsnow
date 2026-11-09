@@ -110,10 +110,20 @@ export interface NewsItem {
   }
 }
 
+export interface SourceAccountStatus {
+  handle: "thsottiaux" | "OpenAI"
+  status: "success" | "stale" | "unavailable"
+  updatedTime?: number
+  nextRetryAt?: number
+  issues: string[]
+}
+
 export interface SourceResponse {
   status: "success" | "cache"
   refreshError?: boolean
   sourceIssues?: string[]
+  partial?: boolean
+  accountStatus?: SourceAccountStatus[]
   /** Earliest retry after an upstream failure; manual refresh also respects it. */
   nextRetryAt?: number
   /** False means the source data is valid but still needs a translation retry. */

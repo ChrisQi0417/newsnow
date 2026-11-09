@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { H3Event } from "h3"
 import { SourceUnavailableError, sourceFailure } from "../server/utils/source-failure"
-import { SourceRetryBaseDelay, clearSourceRetry } from "../server/utils/source-retry"
+import { SourceRetryBaseDelay, clearSourceRetry, sourceRetryKey } from "../server/utils/source-retry"
 import type { SourceRetryState } from "../server/utils/source-retry"
 import { forgetSourceSuccess } from "../server/utils/source-memory-cache"
 import { ManualRefreshCooldown } from "../shared/consts"
@@ -48,7 +48,9 @@ const persistedRetries = new Map<string, SourceRetryState>()
 
 beforeEach(async () => {
   vi.resetAllMocks()
-  await clearSourceRetry("reuters")
+  delete event.context.newsnowAccountStatus
+  delete event.context.newsnowManualRefresh
+  await clearSourceRetry(sourceRetryKey("reuters"))
   forgetSourceSuccess("reuters")
   persistedRetries.clear()
   mocks.getRetry.mockImplementation(async (id: string) => persistedRetries.get(id))
@@ -66,6 +68,35 @@ beforeEach(async () => {
 afterEach(() => vi.restoreAllMocks())
 
 describe("desk cache transparency", () => {
+  it("keeps the retired Reuters sitemap cooldown separate from its new public publishing channel", async () => {
+    const oldRetry = { failures: 4, lastAttemptAt: Date.now(), nextRetryAt: Date.now() + 7_200_000, issues: ["source:http-401"] }
+    persistedRetries.set("reuters", oldRetry)
+    mocks.query.latest = "true"
+    mocks.getter.mockResolvedValue(items)
+    expect((await handler(event)).status).toBe("success")
+    expect(mocks.getRetry).toHaveBeenCalledWith("reuters-public-v1")
+    expect(persistedRetries.get("reuters")).toEqual(oldRetry)
+  })
+  it("persists partial account status with fetched content and exposes it on cache hydration", async () => {
+    const accountStatus = [
+      { handle: "thsottiaux", status: "success", updatedTime: updated, issues: [] },
+      { handle: "OpenAI", status: "stale", updatedTime: updated - 86_400_000, nextRetryAt: Date.now() + 900_000, issues: ["x-embed:http-429"] },
+    ]
+    mocks.query.latest = "true"
+    mocks.getter.mockImplementation(async (request) => {
+      expect(request.context.newsnowManualRefresh).toBe(true)
+      request.context.newsnowAccountStatus = accountStatus
+      return items
+    })
+    const refreshed = await handler(event)
+    expect(refreshed).toMatchObject({ partial: true, accountStatus })
+    expect(mocks.set).toHaveBeenCalledWith("reuters", expect.any(Array), accountStatus)
+    mocks.get.mockResolvedValue({ id: "reuters", items: refreshed.items, updated: refreshed.updatedTime, accountStatus })
+    mocks.getEntire.mockResolvedValue([{ id: "reuters", items: refreshed.items, updated: refreshed.updatedTime, accountStatus }])
+    expect(await handler(event)).toMatchObject({ partial: true, accountStatus })
+    expect(await entire(event)).toEqual([expect.objectContaining({ partial: true, accountStatus })])
+    expect(mocks.getter).toHaveBeenCalledOnce()
+  })
   it("reuses a just-refreshed source during the manual refresh cooldown", async () => {
     mocks.query.latest = "true"
     const recent = Date.now() - 10_000
@@ -133,7 +164,7 @@ describe("desk cache transparency", () => {
     const first = await handler(event)
     expect(first).toMatchObject({ status: "cache", refreshError: true, updatedTime: updated, items, nextRetryAt: now + SourceRetryBaseDelay, sourceIssues: ["ap-page:http-429"] })
     // A new process can recover the cooldown from persisted state.
-    await clearSourceRetry("reuters")
+    await clearSourceRetry(sourceRetryKey("reuters"))
     expect(await handler(event)).toEqual(first)
     delete mocks.query.latest
     expect(await handler(event)).toEqual(first)
@@ -170,11 +201,11 @@ describe("desk cache transparency", () => {
     clock.mockReturnValue(now + SourceRetryBaseDelay)
     await handler(event)
     expect(mocks.getter).toHaveBeenCalledTimes(2)
-    expect(persistedRetries.get("reuters")).toMatchObject({ failures: 2, nextRetryAt: now + SourceRetryBaseDelay * 3 })
+    expect(persistedRetries.get(sourceRetryKey("reuters"))).toMatchObject({ failures: 2, nextRetryAt: now + SourceRetryBaseDelay * 3 })
     clock.mockReturnValue(now + SourceRetryBaseDelay * 3)
     mocks.getter.mockResolvedValue(items)
     expect(await handler(event)).toMatchObject({ status: "success", updatedTime: now + SourceRetryBaseDelay * 3 })
-    expect(persistedRetries.has("reuters")).toBe(false)
+    expect(persistedRetries.has(sourceRetryKey("reuters"))).toBe(false)
     expect(mocks.clearRetry).toHaveBeenCalledOnce()
   })
 
@@ -189,7 +220,7 @@ describe("desk cache transparency", () => {
     reject(new Error("unavailable"))
     expect((await requests).every(result => result.refreshError)).toBe(true)
     expect(mocks.setRetry).toHaveBeenCalledOnce()
-    expect(persistedRetries.get("reuters")?.failures).toBe(1)
+    expect(persistedRetries.get(sourceRetryKey("reuters"))?.failures).toBe(1)
   })
 
   it("keeps successfully collected news when writing the content cache fails", async () => {
@@ -243,7 +274,7 @@ describe("desk cache transparency", () => {
     mocks.query.latest = "true"
     mocks.getter.mockRejectedValue(new Error("unavailable"))
     await handler(event)
-    persistedRetries.delete("reuters")
+    persistedRetries.delete(sourceRetryKey("reuters"))
     mocks.get.mockResolvedValue({ id: "reuters", items, updated: now })
     expect(await handler(event)).toMatchObject({ status: "success", updatedTime: now })
     expect((await handler(event)).refreshError).toBeUndefined()

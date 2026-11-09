@@ -2,66 +2,16 @@ import type { NewsItem } from "@shared/types"
 import { XMLParser } from "fast-xml-parser"
 import { translateNewsItemsToChinese } from "../utils/translate"
 import { SourceUnavailableError, sourceFailure } from "../utils/source-failure"
+import { officialBlueskyFeedUrl, parseOfficialBluesky } from "../utils/official-bluesky"
 
 const newsHubUrl = "https://www.afp.com/en/node/3753800"
-const afpBlueskyDid = "did:plc:r4ve5hjtfjubdwrvlxcad62e"
-const afpBlueskyHandle = "en.afp.com"
-const afpBlueskyFeedUrl = `https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${afpBlueskyHandle}&limit=30&filter=posts_no_replies`
+const afpPublisher = { handle: "en.afp.com", did: "did:plc:r4ve5hjtfjubdwrvlxcad62e", publisher: "法新社" }
+const afpBlueskyFeedUrl = officialBlueskyFeedUrl(afpPublisher.handle)
 const factCheckIndexUrl = "https://news.google.com/rss/search?q=site%3Afactcheck.afp.com%20when%3A14d&hl=en-US&gl=US&ceid=US%3Aen"
 const factCheckBingUrl = "https://www.bing.com/news/search?q=site%3Afactcheck.afp.com&format=rss&sortbydate=1&count=30"
 
-interface AfpBlueskyFeed {
-  feed?: Array<{
-    reason?: unknown
-    reply?: unknown
-    post?: {
-      uri?: string
-      author?: { did?: string, handle?: string }
-      record?: {
-        $type?: string
-        text?: string
-        createdAt?: string
-        reply?: unknown
-      }
-    }
-  }>
-}
-
 export function parseAfpBluesky(data: unknown, now = Date.now()): NewsItem[] {
-  const feed = (data as AfpBlueskyFeed | undefined)?.feed
-  if (!Array.isArray(feed)) return []
-  const seen = new Set<string>()
-  return feed.flatMap((entry): NewsItem[] => {
-    const post = entry?.post
-    const record = post?.record
-    const uri = typeof post?.uri === "string" ? post.uri : ""
-    const match = /^at:\/\/([^/]+)\/app\.bsky\.feed\.post\/([a-z2-7]{13})$/.exec(uri)
-    const title = typeof record?.text === "string" ? record.text.replace(/\s+/g, " ").trim() : ""
-    const createdAt = typeof record?.createdAt === "string" ? record.createdAt : ""
-    const pubDate = Date.parse(createdAt)
-    const day = createdAt.slice(0, 10)
-    const dayTimestamp = Date.parse(`${day}T00:00:00Z`)
-    if (entry?.reason || entry?.reply || record?.reply
-      || post?.author?.did !== afpBlueskyDid || post.author.handle !== afpBlueskyHandle
-      || record?.$type !== "app.bsky.feed.post" || !match || match[1] !== afpBlueskyDid
-      || !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(createdAt)
-      || !Number.isFinite(dayTimestamp) || new Date(dayTimestamp).toISOString().slice(0, 10) !== day
-      || !Number.isFinite(pubDate) || pubDate > now + 5 * 60 * 1000
-      || !title || seen.has(uri)) {
-      return []
-    }
-    seen.add(uri)
-    return [{
-      id: uri,
-      title,
-      url: `https://bsky.app/profile/${afpBlueskyHandle}/post/${match[2]}`,
-      pubDate,
-      extra: {
-        info: "法新社官方动态 · Bluesky",
-        hover: "来源：法新社官方 Bluesky 账号 en.afp.com；发布时间为原帖时间。",
-      },
-    }]
-  }).sort((a, b) => Number(b.pubDate) - Number(a.pubDate)).slice(0, 30)
+  return parseOfficialBluesky(data, afpPublisher, now)
 }
 
 export function parseAfpFactCheckBing(raw: string): NewsItem[] {

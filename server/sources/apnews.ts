@@ -2,6 +2,7 @@ import { XMLParser } from "fast-xml-parser"
 import type { NewsItem } from "@shared/types"
 import { translateNewsItemsToChinese } from "../utils/translate"
 import { SourceUnavailableError, sourceFailure } from "../utils/source-failure"
+import { officialBlueskyFeedUrl, parseOfficialBluesky } from "../utils/official-bluesky"
 
 const routes = {
   "apnews-top": "https://apnews.com/",
@@ -10,6 +11,12 @@ const routes = {
   "apnews-fact-check": "https://apnews.com/ap-fact-check",
 }
 const newsSitemapUrl = "https://apnews.com/news-sitemap-content.xml"
+const apPublisher = {
+  handle: "apnews.com",
+  did: "did:plc:a67zdrt4nl2tv2qojpngogbq",
+  publisher: "美联社",
+  note: "非官网头条排序。",
+}
 
 const indexQueries: Record<string, string> = {
   "https://apnews.com/": "when:7d",
@@ -156,17 +163,37 @@ export function parseAPNewsPage(html: string, url: string) {
 function defineAPNewsSource(url: string) {
   return defineSource(async () => {
     const issues: string[] = []
+    if (url === routes["apnews-top"]) {
+      try {
+        const data = await myFetch<unknown>(officialBlueskyFeedUrl(apPublisher.handle), { retry: 0, timeout: 4500 })
+        const items = parseOfficialBluesky(data, apPublisher)
+        if (items.length) return translateNewsItemsToChinese(items, `apnews:${url}`)
+        issues.push(sourceFailure("ap-public"))
+      } catch (error) {
+        issues.push(sourceFailure("ap-public", error))
+      }
+    }
     const [pageResult, sitemapResult] = await Promise.allSettled([
       myFetch<string, "text">(url, { responseType: "text", timeout: 8000, retry: 0 }),
       myFetch<string, "text">(newsSitemapUrl, { responseType: "text", timeout: 8000, retry: 0 }),
     ])
-    const html = pageResult.status === "fulfilled" ? pageResult.value : ""
-    const sitemap = sitemapResult.status === "fulfilled" ? sitemapResult.value : ""
-    const sitemapItems = sitemap ? parseAPNewsSitemap(sitemap) : []
+    let pageItems: NewsItem[] = []
+    let sitemapItems: NewsItem[] = []
+    try {
+      if (pageResult.status === "rejected") throw pageResult.reason
+      pageItems = parseAPNewsPage(pageResult.value, url)
+      if (!pageItems.length) issues.push(sourceFailure("ap-page"))
+    } catch (error) {
+      issues.push(sourceFailure("ap-page", error))
+    }
+    try {
+      if (sitemapResult.status === "rejected") throw sitemapResult.reason
+      sitemapItems = parseAPNewsSitemap(sitemapResult.value)
+      if (!sitemapItems.length) issues.push(sourceFailure("ap-sitemap"))
+    } catch (error) {
+      issues.push(sourceFailure("ap-sitemap", error))
+    }
     const metadata = new Map(sitemapItems.map(item => [item.url, item]))
-    const pageItems = html ? parseAPNewsPage(html, url) : []
-    if (!pageItems.length) issues.push(sourceFailure("ap-page", pageResult.status === "rejected" ? pageResult.reason : undefined))
-    if (!sitemapItems.length) issues.push(sourceFailure("ap-sitemap", sitemapResult.status === "rejected" ? sitemapResult.reason : undefined))
     // A general sitemap must not replace a specific editorial section.
     let items = (pageItems.length ? pageItems : url === routes["apnews-top"] ? sitemapItems.slice(0, 30) : []).map((item) => {
       const official = metadata.get(item.url)

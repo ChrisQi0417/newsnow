@@ -1,4 +1,4 @@
-import type { NewsItem, SourceID } from "@shared/types"
+import type { NewsItem, SourceAccountStatus, SourceID } from "@shared/types"
 import { sources } from "@shared/sources"
 
 export type DeskCategory = "all" | "world" | "tech" | "finance" | "weather" | "china" | "saved"
@@ -88,12 +88,25 @@ export function sourceKind(id: SourceID) {
   return "媒体报道"
 }
 
-export function sourceWarning(id: SourceID, items: NewsItem[], now = Date.now()) {
+export function sourceWarning(id: SourceID, items: NewsItem[], now = Date.now(), accountStatus?: SourceAccountStatus[]) {
   if (id === "nhk" && items.length) {
     const newest = Math.max(...items.map(articleTime))
     if (newest && now - newest > 48 * 60 * 60_000) return "NHK 上游最新消息已超过 48 小时，接口连通不代表新闻已更新"
   }
   if (id === "twitter") {
+    const failed = accountStatus?.filter(entry => entry.status !== "success")
+    if (failed?.length) {
+      return failed.map((entry) => {
+        const name = entry.handle === "thsottiaux" ? "Tibo" : "OpenAI"
+        const content = entry.status === "stale" && entry.updatedTime !== undefined
+          ? `显示 ${new Date(entry.updatedTime).toLocaleString("zh-CN")} 采集的旧内容`
+          : "暂未取得消息"
+        const retry = entry.nextRetryAt && entry.nextRetryAt > now
+          ? `，${new Date(entry.nextRetryAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })} 后可重试`
+          : ""
+        return `${name} ${content}${retry}`
+      }).join("；")
+    }
     const missing = [["thsottiaux", "Tibo"], ["openai", "OpenAI"]].filter(([account]) => !items.some(item => item.url.toLowerCase().includes(`/${account}/status/`)))
     if (missing.length) return `${missing.map(([, name]) => name).join("、")} 暂未返回消息`
   }

@@ -3,6 +3,7 @@ import { defineEventHandler, readBody } from "h3"
 import { sources } from "@shared/sources"
 import { getCacheTable } from "#/database/cache"
 import { isChineseOutput } from "#/utils/translate"
+import { accountStatusFields } from "#/utils/account-status"
 
 export default defineEventHandler(async (event) => {
   try {
@@ -18,6 +19,7 @@ export default defineEventHandler(async (event) => {
         items: cache.items,
         translationComplete: isChineseOutput(cache.items),
         updatedTime: cache.updated,
+        ...accountStatusFields(cache.accountStatus),
       })) as SourceResponse[]
     }
   } catch {

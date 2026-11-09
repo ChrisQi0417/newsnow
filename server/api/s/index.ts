@@ -8,9 +8,10 @@ import { getCacheTable } from "#/database/cache"
 import type { CacheInfo } from "#/types"
 import { getTranslationIssues, isChineseOutput, translateNewsItemsForOutput } from "#/utils/translate"
 import { SourceUnavailableError, sourceFailure } from "#/utils/source-failure"
-import { SourceRefreshFailure, clearSourceRetry, getSourceRetry, recordSourceFailure } from "#/utils/source-retry"
+import { SourceRefreshFailure, clearSourceRetry, getSourceRetry, recordSourceFailure, sourceRetryKey } from "#/utils/source-retry"
 import type { SourceRetryState } from "#/utils/source-retry"
 import { forgetSourceSuccess, readSourceSuccess, rememberSourceSuccess } from "#/utils/source-memory-cache"
+import { accountStatusFields, parseAccountStatus } from "#/utils/account-status"
 
 const inFlightRefreshes = new Map<SourceID, Promise<CacheInfo>>()
 
@@ -45,13 +46,15 @@ async function refreshSource(id: SourceID, event: H3Event, cacheTable: Awaited<R
       if (id === "weather") throw error
       const issues = error instanceof SourceUnavailableError ? error.issues : [sourceFailure("source", error)]
       // Record once inside the coalesced fetch, not once per waiting request.
-      throw new SourceRefreshFailure(await recordSourceFailure(id, previousRetry, issues, cacheTable))
+      throw new SourceRefreshFailure(await recordSourceFailure(sourceRetryKey(id), previousRetry, issues, cacheTable))
     }
-    const result: CacheInfo = { id, items: readable.items, updated: Date.now() }
-    if (id !== "weather") await clearSourceRetry(id, cacheTable)
+    const accountStatus = parseAccountStatus(event.context.newsnowAccountStatus)
+    const result: CacheInfo = { id, items: readable.items, updated: Date.now(), ...(accountStatus ? { accountStatus } : {}) }
+    if (id !== "weather") await clearSourceRetry(sourceRetryKey(id), cacheTable)
     if (cacheTable && id !== "weather") {
       try {
-        await cacheTable.set(id, readable.items)
+        if (accountStatus) await cacheTable.set(id, readable.items, accountStatus)
+        else await cacheTable.set(id, readable.items)
         forgetSourceSuccess(id)
       } catch {
         // A persistence outage must not discard successfully collected content.
@@ -92,6 +95,7 @@ function deferSourceRefresh(event: H3Event, id: SourceID, retry: SourceRetryStat
       id,
       updatedTime: cache.updated,
       ...cachedItems(cache.items),
+      ...accountStatusFields(cache.accountStatus),
     }
   }
   throw createError({
@@ -124,7 +128,7 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
     }
     const recent = requestScoped ? undefined : readSourceSuccess(id, now)
     if (recent && (!cache || recent.updated > cache.updated)) cache = recent
-    const retry = requestScoped ? undefined : await getSourceRetry(id, cacheTable)
+    const retry = requestScoped ? undefined : await getSourceRetry(sourceRetryKey(id), cacheTable)
     // Even explicit manual refreshes respect an upstream failure's cooldown.
     if (retry && now < retry.nextRetryAt) return deferSourceRefresh(event, id, retry, cache)
     if (cache?.items.length) {
@@ -138,6 +142,7 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
             id,
             updatedTime: cache.updated,
             ...cachedItems(cache.items),
+            ...accountStatusFields(cache.accountStatus),
           }
         }
 
@@ -148,12 +153,14 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
             id,
             updatedTime: cache.updated,
             ...cachedItems(cache.items),
+            ...accountStatusFields(cache.accountStatus),
           }
         }
       }
     }
 
     try {
+      event.context.newsnowManualRefresh = latest
       const refreshed = await refreshSource(id, event, cacheTable, retry)
       return {
         status: "success",
@@ -162,6 +169,7 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
         items: refreshed.items,
         translationComplete: isChineseOutput(refreshed.items),
         translationIssues: getTranslationIssues(refreshed.items),
+        ...accountStatusFields(refreshed.accountStatus),
       }
     } catch (e) {
       if (e instanceof SourceRefreshFailure) return deferSourceRefresh(event, id, e.retry, cache)
@@ -173,6 +181,7 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
           id,
           updatedTime: cache.updated,
           ...cachedItems(cache.items),
+          ...accountStatusFields(cache.accountStatus),
         }
       } else {
         throw e

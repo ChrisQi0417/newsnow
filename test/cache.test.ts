@@ -1,6 +1,6 @@
 import type { NewsItem } from "@shared/types"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { EdgeCache, getCacheTable } from "../server/database/cache"
+import { Cache, EdgeCache, getCacheTable } from "../server/database/cache"
 
 function createRuntimeCache() {
   const values = new Map<string, Response>()
@@ -14,6 +14,28 @@ function createRuntimeCache() {
 }
 
 describe("edge content cache", () => {
+  it("preserves independent account timestamps and cooldowns across persistent cache instances", async () => {
+    const runtime = createRuntimeCache()
+    const states = [{ handle: "OpenAI" as const, status: "stale" as const, updatedTime: 1000, nextRetryAt: 901000, issues: ["x-embed:http-429"] }]
+    await new EdgeCache(runtime).set("twitter", [], states, 1000)
+    expect(await new EdgeCache(runtime).get("twitter")).toMatchObject({ accountStatus: states, updated: 1000 })
+  })
+  it("reads legacy SQL array payloads and preserves metadata in new payloads", async () => {
+    let row = { id: "twitter", data: JSON.stringify([{ id: "1", title: "旧内容", url: "https://x.com/OpenAI/status/1" }]), updated: 1000 }
+    const statement = {
+      get: async () => row,
+      all: async () => [row],
+      run: async (id: string, data: string, updated: number) => {
+        row = { id, data, updated }
+      },
+    }
+    const cache = new Cache({ prepare: () => statement } as never)
+    expect((await cache.get("twitter"))?.items).toHaveLength(1)
+    const states = [{ handle: "OpenAI" as const, status: "stale" as const, updatedTime: 1000, nextRetryAt: 901000, issues: ["x-embed:http-429"] }]
+    await cache.set("twitter", [], states, 1000)
+    expect(await cache.get("twitter")).toMatchObject({ accountStatus: states, updated: 1000 })
+    expect(await cache.getEntire(["twitter"])).toEqual([expect.objectContaining({ accountStatus: states })])
+  })
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()

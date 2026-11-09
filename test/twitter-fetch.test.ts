@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import twitter from "../server/sources/twitter"
+import { resetXAccountMemory } from "../server/utils/twitter-account-cache"
 
-const { fetchMock } = vi.hoisted(() => ({ fetchMock: vi.fn() }))
+const { fetchMock, cacheMock } = vi.hoisted(() => ({ fetchMock: vi.fn(), cacheMock: vi.fn() }))
 vi.mock("../server/utils/fetch", () => ({ myFetch: fetchMock }))
 vi.mock("../server/utils/translate", () => ({ translateNewsItemsToChinese: async (items: unknown) => items }))
 vi.mock("../server/utils/logger", () => ({ logger: { warn: vi.fn() } }))
+vi.mock("../server/database/cache", () => ({ getCacheTable: cacheMock }))
 
 function tiboFeed(count = 1) {
   return {
@@ -43,7 +45,11 @@ function embedded(handle = "OpenAI") {
 
 const requestedUrls = () => fetchMock.mock.calls.map(([url]) => String(url))
 
-beforeEach(() => fetchMock.mockReset())
+beforeEach(() => {
+  fetchMock.mockReset()
+  cacheMock.mockReset().mockResolvedValue(undefined)
+  resetXAccountMemory()
+})
 afterEach(() => vi.restoreAllMocks())
 
 describe("x source request budget", () => {
@@ -79,10 +85,58 @@ describe("x source request budget", () => {
       throw Object.assign(new Error("Rate limit exceeded"), { statusCode: 429 })
     })
 
-    expect(await twitter({} as never)).toEqual([expect.objectContaining({ url: "https://x.com/thsottiaux/status/1000" })])
+    const event = { context: {} as Record<string, unknown> }
+    expect(await twitter(event as never)).toEqual([expect.objectContaining({ url: "https://x.com/thsottiaux/status/1000" })])
     expect(fetchMock).toHaveBeenCalledTimes(3)
     expect(requestedUrls().at(-1)).toContain("timeline-profile/screen-name/OpenAI")
     expect(requestedUrls()).not.toContain("https://x.com/OpenAI")
+    expect(event.context.newsnowAccountStatus).toEqual([
+      expect.objectContaining({ handle: "thsottiaux", status: "success", issues: [] }),
+      expect.objectContaining({ handle: "OpenAI", status: "unavailable", issues: ["x-openai-embed:http-429"], nextRetryAt: expect.any(Number) }),
+    ])
+    fetchMock.mockClear()
+    expect(await twitter({ context: { newsnowManualRefresh: true } } as never)).toHaveLength(1)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("preserves diagnostic codes for each account when all upstreams are rate limited", async () => {
+    fetchMock.mockRejectedValue(Object.assign(new Error("Rate limit exceeded"), { statusCode: 429 }))
+    const event = { context: {} as Record<string, unknown> }
+    await expect(twitter(event as never)).rejects.toMatchObject({ issues: ["x-thsottiaux-verified:http-429", "x-openai-embed:http-429"] })
+    expect(event.context.newsnowAccountStatus).toEqual([
+      expect.objectContaining({ handle: "thsottiaux", status: "unavailable" }),
+      expect.objectContaining({ handle: "OpenAI", status: "unavailable" }),
+    ])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([false, true])("reads the combined cache once and preserves account collection time during migration (metadata: %s)", async (withMetadata) => {
+    const previousTime = Date.now() - 31 * 60_000
+    const previousOpenAI = { id: "old", title: "旧版真实 OpenAI 帖子", url: "https://x.com/OpenAI/status/3000", pubDate: previousTime - 60_000 }
+    const get = vi.fn(async (key: string) => key === "twitter"
+      ? {
+          items: [previousOpenAI],
+          updated: withMetadata ? Date.now() : previousTime,
+          ...(withMetadata ? { accountStatus: [{ handle: "OpenAI", status: "stale", updatedTime: previousTime, issues: [] }] } : {}),
+        }
+      : undefined)
+    const set = vi.fn()
+    cacheMock.mockResolvedValue({ get, set })
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes("codex-reset.com")) return tiboFeed()
+      if (url.includes("publish.x.com")) return oEmbed(url)
+      throw Object.assign(new Error("Rate limit exceeded"), { statusCode: 429 })
+    })
+    const event = { context: {} as Record<string, unknown> }
+    expect(await twitter(event as never)).toEqual(expect.arrayContaining([
+      previousOpenAI,
+      expect.objectContaining({ url: "https://x.com/thsottiaux/status/1000" }),
+    ]))
+    expect(get.mock.calls.filter(([key]) => key === "twitter")).toHaveLength(1)
+    expect(set).toHaveBeenCalledWith("twitter-account:OpenAI", [previousOpenAI], undefined, previousTime)
+    expect(event.context.newsnowAccountStatus).toEqual(expect.arrayContaining([
+      expect.objectContaining({ handle: "OpenAI", status: "stale", updatedTime: previousTime }),
+    ]))
   })
 
   it("retains the embedded Tibo fallback when its verified feed is unavailable", async () => {

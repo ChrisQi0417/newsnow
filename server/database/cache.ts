@@ -1,13 +1,22 @@
 import process from "node:process"
-import type { NewsItem, SourceID } from "@shared/types"
+import type { NewsItem, SourceAccountStatus, SourceID } from "@shared/types"
 import type { Database } from "db0"
 import type { CacheInfo, CacheRow } from "../types"
 import { parseSourceRetryState } from "../utils/source-retry"
 import type { SourceRetryState } from "../utils/source-retry"
+import { parseAccountStatus } from "../utils/account-status"
 
 const edgeCacheBaseUrl = "https://newsnow-1nq.pages.dev/__internal-cache/sources-v1"
 const edgeCacheMaxAge = 7 * 24 * 60 * 60
 const edgeRetryBaseUrl = "https://newsnow-1nq.pages.dev/__internal-cache/source-retry-v1"
+
+function decodeCachedContent(raw: string) {
+  const value = JSON.parse(raw)
+  if (Array.isArray(value)) return { items: value as NewsItem[] }
+  if (!value || !Array.isArray(value.items)) throw new Error("Invalid cached content")
+  const accountStatus = parseAccountStatus(value.accountStatus)
+  return { items: value.items as NewsItem[], ...(accountStatus ? { accountStatus } : {}) }
+}
 
 export interface EdgeRuntimeCache {
   delete: (request: Request) => Promise<boolean>
@@ -35,11 +44,12 @@ export class EdgeCache {
     this.cache = cache
   }
 
-  async set(key: string, value: NewsItem[]) {
+  async set(key: string, value: NewsItem[], accountStatus?: SourceAccountStatus[], updated = Date.now()) {
     const data: CacheInfo = {
       id: key as SourceID,
-      updated: Date.now(),
+      updated,
       items: value,
+      ...(accountStatus ? { accountStatus: parseAccountStatus(accountStatus) } : {}),
     }
     await this.cache.put(edgeCacheRequest(key), new Response(JSON.stringify(data), {
       headers: {
@@ -61,6 +71,7 @@ export class EdgeCache {
         id: key as SourceID,
         updated: data.updated as number,
         items: data.items,
+        ...(data.accountStatus ? { accountStatus: parseAccountStatus(data.accountStatus) } : {}),
       }
     } catch {}
   }
@@ -121,11 +132,10 @@ export class Cache {
     logger.success(`init cache table`)
   }
 
-  async set(key: string, value: NewsItem[]) {
-    const now = Date.now()
+  async set(key: string, value: NewsItem[], accountStatus?: SourceAccountStatus[], updated = Date.now()) {
     await this.db.prepare(
       `INSERT OR REPLACE INTO cache (id, data, updated) VALUES (?, ?, ?)`,
-    ).run(key, JSON.stringify(value), now)
+    ).run(key, JSON.stringify(accountStatus ? { items: value, accountStatus: parseAccountStatus(accountStatus) } : value), updated)
     logger.success(`set ${key} cache`)
   }
 
@@ -136,7 +146,7 @@ export class Cache {
       return {
         id: row.id,
         updated: row.updated,
-        items: JSON.parse(row.data),
+        ...decodeCachedContent(row.data),
       }
     }
   }
@@ -160,7 +170,7 @@ export class Cache {
       return rows.map(row => ({
         id: row.id,
         updated: row.updated,
-        items: JSON.parse(row.data) as NewsItem[],
+        ...decodeCachedContent(row.data),
       }))
     } else {
       return []
