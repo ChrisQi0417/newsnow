@@ -20,7 +20,6 @@ export async function repairCachedTranslation(
   cache: CacheInfo,
   ai?: TranslationAI,
   store?: TranslationRepairStore,
-  isCollecting: () => boolean = () => false,
 ): Promise<CacheInfo> {
   // Repair uses the existing AI binding, not additional public translation APIs.
   if (!ai || !cache.items.length || isChineseOutput(cache.items)) return cache
@@ -33,6 +32,15 @@ export async function repairCachedTranslation(
   const repair = async () => {
     const now = Date.now()
     const key = `translation-repair:${cache.id}`
+    const resultKey = `translation-result:${cache.id}`
+    try {
+      const result = await store?.get(resultKey)
+      if (result?.id === resultKey && result.updated === cache.updated && result.items.length === cache.items.length
+        && result.items.every((item, index) => item.id === cache.items[index].id && item.url === cache.items[index].url)) {
+        cache = { ...cache, items: result.items }
+        if (isChineseOutput(cache.items)) return cache
+      }
+    } catch { /* A missing result falls through to the existing repair cooldown. */ }
     let attemptedAt = attempts.get(cache.id) ?? 0
     try {
       const marker = await store?.get(key)
@@ -61,9 +69,9 @@ export async function repairCachedTranslation(
       const current = await store?.get(cache.id)
       if (current && current.updated !== cache.updated) return current.updated > cache.updated ? current : repaired
       if (current && isChineseOutput(current.items)) return current
-      // Edge Cache has no atomic compare-and-set. Recheck the version immediately
-      // before writing and never persist over a known in-flight collection.
-      if (current && !isCollecting()) await store?.set(cache.id, items, cache.accountStatus, cache.updated)
+      // Store a versioned overlay under a separate key. Edge Cache has no atomic
+      // compare-and-set, so a delayed repair must never write the media cache.
+      await store?.set(resultKey, items, undefined, cache.updated)
     } catch { /* Repaired titles remain usable in this response. */ }
     return repaired
   }

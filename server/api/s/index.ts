@@ -37,7 +37,7 @@ function cachedItems(items: CacheInfo["items"]) {
 async function repairCacheForOutput(cache: CacheInfo | undefined, event: H3Event, store: Awaited<ReturnType<typeof getCacheTable>>) {
   if (!cache) return cache
   const binding = event.context.cloudflare?.env?.AI
-  return repairCachedTranslation(cache, typeof binding?.run === "function" ? binding : undefined, store, () => inFlightRefreshes.has(cache.id))
+  return repairCachedTranslation(cache, typeof binding?.run === "function" ? binding : undefined, store)
 }
 
 async function refreshSource(id: SourceID, event: H3Event, cacheTable: Awaited<ReturnType<typeof getCacheTable>>, previousRetry?: SourceRetryState) {

@@ -23,6 +23,9 @@ const blockedTranslationProviders = new Map<string, number>()
 // with Cloudflare's supported catalog; translation does not need reasoning.
 const workersAiModel = "@cf/google/gemma-4-26b-a4b-it"
 const workersAiRequestLimit = 6
+const workersAiBatchSize = 8
+const workersAiBatchLength = 1500
+const workersAiRequestTimeoutMs = 14_000
 
 export interface TranslationAI {
   run: (model: string, input: Record<string, unknown>) => Promise<unknown>
@@ -357,7 +360,7 @@ async function translateWithWorkersAI(texts: string[], ai: TranslationAI, budget
         max_completion_tokens: 2048,
       }),
       new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => reject(new Error("translation timeout")), Math.min(10_000, budget.deadline - Date.now()))
+        timer = setTimeout(() => reject(new Error("translation timeout")), Math.min(workersAiRequestTimeoutMs, budget.deadline - Date.now()))
       }),
     ]) as { response?: unknown, choices?: { message?: { content?: unknown } }[] }
     const content = data?.choices?.[0]?.message?.content ?? data?.response
@@ -416,7 +419,7 @@ export async function translateTextsToChinese(texts: string[], persistentCacheNa
   let batchLength = 0
   for (const text of pendingTargets) {
     const nextLength = batchLength + text.length + (batch.length ? 1 : 0)
-    if (batch.length && (batch.length >= 10 || nextLength > (ai ? 1800 : 900))) {
+    if (batch.length && (batch.length >= (ai ? workersAiBatchSize : 10) || nextLength > (ai ? workersAiBatchLength : 900))) {
       batches.push(batch)
       batch = []
       batchLength = 0

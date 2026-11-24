@@ -65,7 +65,8 @@ describe("workers AI translation", () => {
     const result = await translateTextsToChinese(texts, "limits", { run })
     expect(run).toHaveBeenCalledTimes(6)
     expect(maximum).toBe(2)
-    expect(result.slice(60)).toEqual(texts.slice(60))
+    expect(result.slice(0, 48)).toEqual(Array.from({ length: 48 }, () => "新闻标题"))
+    expect(result.slice(48)).toEqual(texts.slice(48))
   })
 
   it.each([
@@ -101,7 +102,7 @@ describe("workers AI translation", () => {
     const run = vi.fn(() => new Promise(() => {}))
     const texts = Array.from({ length: 30 }, (_, index) => `Slow story ${index}`)
     const result = translateTextsToChinese(texts, "timeout", { run })
-    await vi.advanceTimersByTimeAsync(10_001)
+    await vi.advanceTimersByTimeAsync(14_001)
     expect(await result).toEqual(texts)
     expect(run).toHaveBeenCalledTimes(2)
   })

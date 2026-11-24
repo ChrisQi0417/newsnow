@@ -68,7 +68,8 @@ describe("cached Chinese translation repair", () => {
     expect(result).toEqual({ ...cache, items: [{ ...cache.items[0], title: "已有新闻的中文翻译" }] })
     expect(mocks.translate).toHaveBeenCalledWith(cache.items, "reuters", ai)
     expect(mocks.set).toHaveBeenNthCalledWith(1, "translation-repair:reuters", [], undefined, now)
-    expect(mocks.set).toHaveBeenNthCalledWith(2, "reuters", result.items, cache.accountStatus, cache.updated)
+    expect(mocks.set).toHaveBeenNthCalledWith(2, "translation-result:reuters", result.items, undefined, cache.updated)
+    expect(records.get("reuters")).toEqual(cache)
     expect(mocks.clearRetry).not.toHaveBeenCalled()
   })
 
@@ -118,10 +119,74 @@ describe("cached Chinese translation repair", () => {
     expect(records.get("reuters")).toEqual(newer)
   })
 
-  it("does not persist an older repair while this instance is collecting fresh content", async () => {
-    expect((await repair(cache, ai, mocks, () => true)).items[0].title).toBe("已有新闻的中文翻译")
-    expect(mocks.set).toHaveBeenCalledOnce()
+  it("cannot overwrite a new media collection that finishes after the version check", async () => {
+    const newer = { ...cache, updated: now, items: [{ id: "new", title: "更新的新闻", url: "https://example.com/new" }] }
+    mocks.set.mockImplementation(async (key: string, items: CacheInfo["items"], accountStatus?: CacheInfo["accountStatus"], updated = Date.now()) => {
+      if (key === "translation-result:reuters") records.set("reuters", newer)
+      records.set(key, { id: key as CacheInfo["id"], items, accountStatus, updated })
+    })
+    await repair(cache, ai, mocks)
+    expect(records.get("reuters")).toEqual(newer)
+    expect(records.get("translation-result:reuters")?.updated).toBe(cache.updated)
+    expect(mocks.set.mock.calls.every(([key]) => key !== "reuters")).toBe(true)
+    expect(await repair(newer, ai, mocks)).toEqual(newer)
+  })
+
+  it("reuses a matching result during cooldown and after restart without changing caller metadata", async () => {
+    const result = await repair(cache, ai, mocks)
+    vi.resetModules()
+    repair = (await import("../server/utils/cached-translation-repair")).repairCachedTranslation
+    const current = { ...cache, accountStatus: undefined }
+    expect(await repair(current, ai, mocks)).toEqual({ ...current, items: result.items })
+    expect(mocks.translate).toHaveBeenCalledOnce()
+    expect(mocks.set).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(["old-version", "empty"])("ignores an unusable %s overlay and retains the repair cooldown", async (kind) => {
+    records.set("translation-repair:reuters", { ...cache, id: "translation-repair:reuters" as CacheInfo["id"], updated: now, items: [] })
+    records.set("translation-result:reuters", {
+      ...cache,
+      id: "translation-result:reuters" as CacheInfo["id"],
+      updated: kind === "old-version" ? cache.updated - 1 : cache.updated,
+      items: kind === "empty" ? [] : [{ ...cache.items[0], title: "旧版本中文" }],
+    })
+    expect(await repair(cache, ai, mocks)).toEqual(cache)
+    expect(mocks.translate).not.toHaveBeenCalled()
+    expect(mocks.set).not.toHaveBeenCalled()
+  })
+
+  it("reuses partial Chinese during cooldown and completes the remaining titles after cooldown", async () => {
+    cache.items.push({ id: "second", title: "Second headline", url: "https://example.com/second" })
+    mocks.translate.mockImplementationOnce(async (items: CacheInfo["items"]) => [{ ...items[0], title: "第一条中文" }, items[1]])
+    const partial = await repair(cache, ai, mocks)
+    expect(partial.items.map(item => item.title)).toEqual(["第一条中文", "Second headline"])
+
+    vi.resetModules()
+    repair = (await import("../server/utils/cached-translation-repair")).repairCachedTranslation
+    vi.mocked(Date.now).mockReturnValue(now + interval - 1)
+    expect(await repair(cache, ai, mocks)).toEqual(partial)
+    expect(mocks.translate).toHaveBeenCalledOnce()
+
+    mocks.translate.mockImplementationOnce(async (items: CacheInfo["items"]) => [items[0], { ...items[1], title: "第二条中文" }])
+    vi.mocked(Date.now).mockReturnValue(now + interval)
+    const completed = await repair(cache, ai, mocks)
+    expect(mocks.translate).toHaveBeenLastCalledWith(partial.items, "reuters", ai)
+    expect(completed.items.map(item => item.title)).toEqual(["第一条中文", "第二条中文"])
+    expect(completed.updated).toBe(cache.updated)
+    expect(await repair(cache, ai, mocks)).toEqual(completed)
+    expect(mocks.translate).toHaveBeenCalledTimes(2)
     expect(records.get("reuters")).toEqual(cache)
+  })
+
+  it("rejects a same-version overlay whose article identities do not match", async () => {
+    records.set("translation-repair:reuters", { ...cache, id: "translation-repair:reuters" as CacheInfo["id"], updated: now, items: [] })
+    records.set("translation-result:reuters", {
+      ...cache,
+      id: "translation-result:reuters" as CacheInfo["id"],
+      items: [{ id: "unrelated", url: "https://example.com/unrelated", title: "不相关的中文" }],
+    })
+    expect(await repair(cache, ai, mocks)).toEqual(cache)
+    expect(mocks.translate).not.toHaveBeenCalled()
   })
 
   it("does no repair work for Chinese content or when no AI binding exists", async () => {
