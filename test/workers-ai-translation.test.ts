@@ -17,10 +17,19 @@ describe("workers AI translation", () => {
     expect(result[0]).toEqual({ ...item, title: "央行维持利率不变", extra: { hover: `原文：${item.title}` } })
     expect(await translateNewsItemsForOutput([item], "bbc-world", { run })).toEqual(result)
     expect(run).toHaveBeenCalledOnce()
-    expect(run).toHaveBeenCalledWith("@cf/qwen/qwen3-30b-a3b-fp8", expect.objectContaining({
+    expect(run).toHaveBeenCalledWith("@cf/google/gemma-4-26b-a4b-it", expect.objectContaining({
       messages: [expect.objectContaining({ role: "system" }), { role: "user", content: JSON.stringify({ 0: item.title }) }],
-      response_format: expect.objectContaining({ type: "json_schema" }),
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "translations",
+          strict: true,
+          schema: { type: "object", properties: { 0: { type: "string" } }, required: ["0"], additionalProperties: false },
+        },
+      },
+      chat_template_kwargs: { enable_thinking: false },
       temperature: 0,
+      max_completion_tokens: 2048,
     }))
     expect(fetchMock).not.toHaveBeenCalled()
   })
@@ -59,10 +68,13 @@ describe("workers AI translation", () => {
     expect(result.slice(60)).toEqual(texts.slice(60))
   })
 
-  it("stops after a quota failure without fanning out to public providers", async () => {
+  it.each([
+    { error: "Daily quota exceeded", issue: "workers-ai:quota" },
+    { error: "HTTP 410 Gone: model retired (5028)", issue: "workers-ai:model-retired" },
+  ])("stops after $issue without fanning out to public providers", async ({ error, issue }) => {
     const { translateTextsToChinese, getTranslationIssues } = await import("../server/utils/translate")
     const run = vi.fn(async () => {
-      throw new Error("Daily quota exceeded")
+      throw new Error(error)
     })
     const fetchMock = vi.fn()
     vi.stubGlobal("fetch", fetchMock)
@@ -70,7 +82,7 @@ describe("workers AI translation", () => {
     expect(await translateTextsToChinese(texts, "quota", { run })).toEqual(texts)
     expect(run.mock.calls.length).toBeLessThanOrEqual(2)
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(getTranslationIssues([{ id: "1", title: texts[0], url: "https://example.com" }])).toContain("workers-ai:quota")
+    expect(getTranslationIssues([{ id: "1", title: texts[0], url: "https://example.com" }])).toContain(issue)
     await translateTextsToChinese(["New story during cooldown"], "other", { run })
     expect(run.mock.calls.length).toBeLessThanOrEqual(2)
   })

@@ -18,13 +18,25 @@ for (const [index, id] of sourceIds.entries()) {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       signal: controller.signal,
     })
-    const payload = await response.json() as { items?: unknown[], refreshError?: boolean }
+    const payload = await response.json() as {
+      items?: unknown[]
+      refreshError?: boolean
+      partial?: boolean
+      translationComplete?: boolean
+      accountStatus?: Array<{ handle?: string, status?: string }>
+    }
     const count = Array.isArray(payload.items) ? payload.items.length : 0
-    if (!response.ok || payload.refreshError || !count) {
+    const affectedAccounts = Array.isArray(payload.accountStatus)
+      ? payload.accountStatus.filter(account => account && account.status !== "success").map(account => account.handle === "OpenAI" ? "OpenAI 官方" : account.handle === "thsottiaux" ? "Tibo" : "未知账号")
+      : []
+    const partial = payload.partial === true || affectedAccounts.length > 0
+    const translationIncomplete = payload.translationComplete === false
+    if (!response.ok || payload.refreshError || !count || partial || translationIncomplete) {
       failures.push(id)
-      console.error(`${id}: failed (HTTP ${response.status}, ${count} items)`)
+      const details = affectedAccounts.length ? `；受影响账号：${affectedAccounts.join("、")}` : partial ? "；部分内容未完整返回" : ""
+      console.error(`${id}：刷新未完整成功（HTTP ${response.status}，${count} 条内容${details}${translationIncomplete ? "；中文翻译未完成" : ""}）`)
     } else {
-      console.log(`${id}: ${count} items`)
+      console.log(`${id}：${count} 条内容`)
     }
   } catch (error) {
     failures.push(id)
@@ -36,5 +48,5 @@ for (const [index, id] of sourceIds.entries()) {
   if (index < sourceIds.length - 1) await new Promise(resolve => setTimeout(resolve, delayMs))
 }
 
-console.log(`Finished ${sourceIds.length} sources; ${failures.length} failed.`)
+console.log(`已检查 ${sourceIds.length} 个来源；${failures.length} 个未完整成功。`)
 if (failures.length) process.exitCode = 1

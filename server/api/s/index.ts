@@ -12,6 +12,7 @@ import { SourceRefreshFailure, clearSourceRetry, getSourceRetry, recordSourceFai
 import type { SourceRetryState } from "#/utils/source-retry"
 import { forgetSourceSuccess, readSourceSuccess, rememberSourceSuccess } from "#/utils/source-memory-cache"
 import { accountStatusFields, parseAccountStatus } from "#/utils/account-status"
+import { repairCachedTranslation } from "#/utils/cached-translation-repair"
 
 const inFlightRefreshes = new Map<SourceID, Promise<CacheInfo>>()
 
@@ -29,7 +30,14 @@ function cachedItems(items: CacheInfo["items"]) {
   return {
     items,
     translationComplete: isChineseOutput(items),
+    translationIssues: getTranslationIssues(items),
   }
+}
+
+async function repairCacheForOutput(cache: CacheInfo | undefined, event: H3Event, store: Awaited<ReturnType<typeof getCacheTable>>) {
+  if (!cache) return cache
+  const binding = event.context.cloudflare?.env?.AI
+  return repairCachedTranslation(cache, typeof binding?.run === "function" ? binding : undefined, store, () => inFlightRefreshes.has(cache.id))
 }
 
 async function refreshSource(id: SourceID, event: H3Event, cacheTable: Awaited<ReturnType<typeof getCacheTable>>, previousRetry?: SourceRetryState) {
@@ -130,13 +138,17 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
     if (recent && (!cache || recent.updated > cache.updated)) cache = recent
     const retry = requestScoped ? undefined : await getSourceRetry(sourceRetryKey(id), cacheTable)
     // Even explicit manual refreshes respect an upstream failure's cooldown.
-    if (retry && now < retry.nextRetryAt) return deferSourceRefresh(event, id, retry, cache)
+    if (retry && now < retry.nextRetryAt) {
+      cache = await repairCacheForOutput(cache, event, cacheTable)
+      return deferSourceRefresh(event, id, retry, cache)
+    }
     if (cache?.items.length) {
       // Manual refresh bypasses the ordinary cadence, but repeated clicks
       // within a minute reuse the completed fetch across users of this cache.
       if (!latest || now - cache.updated < ManualRefreshCooldown) {
         // Respect each source's collection cadence before contacting its upstream.
         if (now - cache.updated < sources[id].interval) {
+          cache = (await repairCacheForOutput(cache, event, cacheTable))!
           return {
             status: "success",
             id,
@@ -148,6 +160,7 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
 
         // Keep recently cached content available during the short cache grace period.
         if (now - cache.updated < TTL) {
+          cache = (await repairCacheForOutput(cache, event, cacheTable))!
           return {
             status: "cache",
             id,
@@ -172,6 +185,7 @@ export default defineEventHandler(async (event): Promise<SourceResponse> => {
         ...accountStatusFields(refreshed.accountStatus),
       }
     } catch (e) {
+      cache = await repairCacheForOutput(cache, event, cacheTable)
       if (e instanceof SourceRefreshFailure) return deferSourceRefresh(event, id, e.retry, cache)
       if (cache!) {
         return {
